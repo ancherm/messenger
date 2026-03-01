@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: server
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+
+logging:
+  level:
+    org:
+      hibernate:
+        SQL:
+          DEBUG
+
+server:
+  port: 8888
+  address: 0.0.0.0
