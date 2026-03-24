@@ -17,7 +17,7 @@ import java.util.Map;
 @Component
 public class TokenManager {
 
-    @Value("${secret}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     public static final long TOKEN_VALIDITY = 10 * 60 * 60;
