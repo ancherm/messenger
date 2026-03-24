@@ -1,6 +1,7 @@
 openapi: 3.0.3
 info:
   title: Messenger API
+  description: API мессенджера для личных чатов, групп и каналов
   version: 1.0.0
 servers:
   - url: http://localhost:8888/api
@@ -9,7 +10,8 @@ paths:
   /auth/register:
     post:
       tags: [Auth]
-      summary: Register a new user
+      summary: Регистрация нового пользователя
+      description: Создает нового пользователя в системе
       requestBody:
         required: true
         content:
@@ -18,18 +20,19 @@ paths:
               $ref: '#/components/schemas/UserRegisterRequest'
       responses:
         '201':
-          description: User registered
+          description: Пользователь успешно зарегистрирован
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
         '400':
-          description: Validation error
+          description: Ошибка валидации данных
 
   /auth/login:
     post:
       tags: [Auth]
-      summary: Login
+      summary: Вход в систему
+      description: Авторизует пользователя и возвращает JWT токен
       requestBody:
         required: true
         content:
@@ -38,29 +41,31 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Auth success
+          description: Успешная авторизация
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResponse'
         '401':
-          description: Invalid credentials
+          description: Неверные учетные данные
 
   /users/me:
     get:
       tags: [Users]
-      summary: Get current user
+      summary: Получить текущего пользователя
+      description: Возвращает информацию о текущем авторизованном пользователе
       security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: Current user
+          description: Данные текущего пользователя
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
     patch:
       tags: [Users]
-      summary: Update current user
+      summary: Обновить профиль
+      description: Обновляет имя, телефон, аватар и статус текущего пользователя
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -70,7 +75,7 @@ paths:
               $ref: '#/components/schemas/UserUpdateRequest'
       responses:
         '200':
-          description: Updated user
+          description: Профиль обновлен
           content:
             application/json:
               schema:
@@ -79,35 +84,39 @@ paths:
   /users/{id}:
     get:
       tags: [Users]
-      summary: Get user by id
+      summary: Получить пользователя по ID
+      description: Возвращает публичную информацию о пользователе
       security: [{ bearerAuth: [] }]
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID пользователя
       responses:
         '200':
-          description: User
+          description: Информация о пользователе
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
         '404':
-          description: User not found
+          description: Пользователь не найден
 
   /users:
     get:
       tags: [Users]
-      summary: Search users
+      summary: Поиск пользователей
+      description: Ищет пользователей по имени, username или телефону
       security: [{ bearerAuth: [] }]
       parameters:
         - name: query
           in: query
           schema: { type: string }
+          description: Текст для поиска
       responses:
         '200':
-          description: List of users
+          description: Список найденных пользователей
           content:
             application/json:
               schema:
@@ -118,11 +127,12 @@ paths:
   /chats:
     get:
       tags: [Chats]
-      summary: List my chats
+      summary: Мои чаты
+      description: Возвращает список всех чатов текущего пользователя
       security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: List of chats
+          description: Список чатов пользователя
           content:
             application/json:
               schema:
@@ -131,7 +141,8 @@ paths:
                   $ref: '#/components/schemas/Chat'
     post:
       tags: [Chats]
-      summary: Create chat
+      summary: Создать чат
+      description: Создает новый личный чат, группу или канал
       security: [{ bearerAuth: [] }]
       requestBody:
         required: true
@@ -141,7 +152,7 @@ paths:
               $ref: '#/components/schemas/ChatCreateRequest'
       responses:
         '201':
-          description: Chat created
+          description: Чат успешно создан
           content:
             application/json:
               schema:
@@ -150,15 +161,17 @@ paths:
   /chats/search:
     get:
       tags: [Chats]
-      summary: Search chats
+      summary: Поиск чатов
+      description: Ищет публичные группы и каналы по названию
       security: [{ bearerAuth: [] }]
       parameters:
         - name: query
           in: query
           schema: { type: string }
+          description: Текст для поиска чатов
       responses:
         '200':
-          description: List of chats
+          description: Найденные чаты
           content:
             application/json:
               schema:
@@ -169,22 +182,24 @@ paths:
   /chats/{chatId}:
     get:
       tags: [Chats]
-      summary: Get chat by id
+      summary: Информация о чате
+      description: Полная информация о чате с участниками
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
       responses:
         '200':
-          description: Chat
+          description: Данные чата с участниками
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChatWithParticipants'
         '404':
-          description: Chat not found
+          description: Чат не найден
     patch:
       tags: [Chats]
-      summary: Update chat
+      summary: Обновить чат
+      description: Изменяет название, описание или аватар (только для ADMIN/OWNER)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -196,31 +211,33 @@ paths:
               $ref: '#/components/schemas/ChatUpdateRequest'
       responses:
         '200':
-          description: Updated chat
+          description: Чат обновлен
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Chat'
     delete:
       tags: [Chats]
-      summary: Delete or leave chat
+      summary: Удалить/покинуть чат
+      description: Удаляет чат (OWNER) или покидает его (MEMBER/ADMIN)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
       responses:
         '204':
-          description: Deleted
+          description: Чат удален или пользователь покинул чат
 
   /chats/{chatId}/participants:
     get:
       tags: [Participants]
-      summary: List participants
+      summary: Участники чата
+      description: Список всех участников чата с их ролями
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
       responses:
         '200':
-          description: Participants list
+          description: Список участников
           content:
             application/json:
               schema:
@@ -229,7 +246,8 @@ paths:
                   $ref: '#/components/schemas/ChatParticipant'
     post:
       tags: [Participants]
-      summary: Add participants
+      summary: Добавить участников
+      description: Добавляет пользователей в групповой чат или канал (только ADMIN/OWNER)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -241,7 +259,7 @@ paths:
               $ref: '#/components/schemas/AddParticipantsRequest'
       responses:
         '200':
-          description: Updated participants
+          description: Участники добавлены
           content:
             application/json:
               schema:
@@ -252,7 +270,8 @@ paths:
   /chats/{chatId}/participants/{userId}:
     patch:
       tags: [Participants]
-      summary: Update participant role
+      summary: Изменить роль участника
+      description: Обновляет роль или права администратора участника
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -260,6 +279,7 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID участника
       requestBody:
         required: true
         content:
@@ -268,14 +288,15 @@ paths:
               $ref: '#/components/schemas/ParticipantUpdateRequest'
       responses:
         '200':
-          description: Updated participant
+          description: Роль участника обновлена
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ChatParticipant'
     delete:
       tags: [Participants]
-      summary: Remove participant
+      summary: Удалить участника
+      description: Исключает участника из чата (только ADMIN/OWNER)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -283,32 +304,38 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID участника
       responses:
         '204':
-          description: Removed
+          description: Участник удален из чата
 
   /chats/{chatId}/messages:
     get:
       tags: [Messages]
-      summary: List messages in chat
+      summary: Сообщения чата
+      description: Получить сообщения с пагинацией и поиском
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
         - name: before
           in: query
           schema: { type: integer, format: int64 }
+          description: ID сообщения для загрузки сообщений раньше него
         - name: after
           in: query
           schema: { type: integer, format: int64 }
+          description: ID сообщения для загрузки сообщений позже него
         - name: limit
           in: query
           schema: { type: integer, default: 50 }
+          description: Количество сообщений (макс. 100)
         - name: search
           in: query
           schema: { type: string }
+          description: Поиск по тексту сообщений
       responses:
         '200':
-          description: Messages list
+          description: Список сообщений
           content:
             application/json:
               schema:
@@ -317,7 +344,8 @@ paths:
                   $ref: '#/components/schemas/Message'
     post:
       tags: [Messages]
-      summary: Send message
+      summary: Отправить сообщение
+      description: Отправляет текстовое сообщение, медиафайл или локацию
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -329,7 +357,7 @@ paths:
               $ref: '#/components/schemas/MessageCreateRequest'
       responses:
         '201':
-          description: Message created
+          description: Сообщение отправлено
           content:
             application/json:
               schema:
@@ -338,29 +366,33 @@ paths:
   /messages/{messageId}:
     get:
       tags: [Messages]
-      summary: Get message by id
+      summary: Получить сообщение
+      description: Детальная информация о сообщении для reply/forward
       security: [{ bearerAuth: [] }]
       parameters:
         - name: messageId
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID сообщения
       responses:
         '200':
-          description: Message
+          description: Сообщение найдено
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Message'
     patch:
       tags: [Messages]
-      summary: Edit message
+      summary: Редактировать сообщение
+      description: Изменяет текст сообщения (только для своих сообщений)
       security: [{ bearerAuth: [] }]
       parameters:
         - name: messageId
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID сообщения
       requestBody:
         required: true
         content:
@@ -369,28 +401,31 @@ paths:
               $ref: '#/components/schemas/MessageEditRequest'
       responses:
         '200':
-          description: Updated message
+          description: Сообщение обновлено
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Message'
     delete:
       tags: [Messages]
-      summary: Delete message
+      summary: Удалить сообщение
+      description: Удаляет сообщение для себя или для всех (ADMIN/OWNER)
       security: [{ bearerAuth: [] }]
       parameters:
         - name: messageId
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID сообщения
       responses:
         '204':
-          description: Deleted
+          description: Сообщение удалено
 
   /chats/{chatId}/messages/{messageId}/read:
     post:
       tags: [ReadReceipts]
-      summary: Mark message as read
+      summary: Пометить как прочитанное
+      description: Отмечает сообщение как прочитанное текущим пользователем
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -398,14 +433,16 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID сообщения
       responses:
         '204':
-          description: Marked as read
+          description: Сообщение помечено как прочитанное
 
   /chats/{chatId}/messages/{messageId}/readers:
     get:
       tags: [ReadReceipts]
-      summary: List readers of message
+      summary: Кто прочитал сообщение
+      description: Список пользователей, прочитавших сообщение (для групп/каналов)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -413,9 +450,10 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID сообщения
       responses:
         '200':
-          description: List of read receipts
+          description: Список пользователей, прочитавших сообщение
           content:
             application/json:
               schema:
@@ -426,27 +464,30 @@ paths:
   /chats/{chatId}/pin:
     post:
       tags: [Pins]
-      summary: Pin chat
+      summary: Закрепить чат
+      description: Добавляет чат в список закрепленных
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
       responses:
         '204':
-          description: Pinned
+          description: Чат закреплен
     delete:
       tags: [Pins]
-      summary: Unpin chat
+      summary: Открепить чат
+      description: Удаляет чат из списка закрепленных
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
       responses:
         '204':
-          description: Unpinned
+          description: Чат откреплен
 
   /chats/{chatId}/messages/{messageId}/pin:
     post:
       tags: [Pins]
-      summary: Pin message
+      summary: Закрепить сообщение
+      description: Закрепляет сообщение в чате (только ADMIN/OWNER)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -454,12 +495,14 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID сообщения
       responses:
         '204':
-          description: Pinned
+          description: Сообщение закреплено
     delete:
       tags: [Pins]
-      summary: Unpin message
+      summary: Открепить сообщение
+      description: Открепляет сообщение из чата
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/ChatId'
@@ -467,192 +510,8 @@ paths:
           in: path
           required: true
           schema: { type: integer, format: int64 }
+          description: ID сообщения
       responses:
         '204':
-          description: Unpinned
+          description: Сообщение откреплено
 
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-  parameters:
-    ChatId:
-      name: chatId
-      in: path
-      required: true
-      schema: { type: integer, format: int64 }
-
-  schemas:
-    User:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        username: { type: string }
-        email: { type: string }
-        firstName: { type: string }
-        lastName: { type: string }
-        phone: { type: string }
-        avatarUrl: { type: string }
-        status:
-          type: string
-          enum: [ONLINE, OFFLINE, AWAY]
-        lastSeenAt: { type: string, format: date-time }
-        createdAt: { type: string, format: date-time }
-        active: { type: boolean }
-
-    UserRegisterRequest:
-      type: object
-      required: [username, email, password]
-      properties:
-        username: { type: string }
-        email: { type: string, format: email }
-        password: { type: string, format: password }
-
-    LoginRequest:
-      type: object
-      required: [username, password]
-      properties:
-        username: { type: string }
-        password: { type: string, format: password }
-
-    LoginResponse:
-      type: object
-      properties:
-        token: { type: string }
-        user:
-          $ref: '#/components/schemas/User'
-
-    UserUpdateRequest:
-      type: object
-      properties:
-        firstName: { type: string }
-        lastName: { type: string }
-        phone: { type: string }
-        avatarUrl: { type: string }
-        status:
-          type: string
-          enum: [ONLINE, OFFLINE, AWAY]
-
-    Chat:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        type:
-          type: string
-          enum: [PRIVATE, GROUP, CHANNEL]
-        title: { type: string }
-        description: { type: string }
-        avatarUrl: { type: string }
-        createdById: { type: integer, format: int64 }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-
-    ChatWithParticipants:
-      allOf:
-        - $ref: '#/components/schemas/Chat'
-        - type: object
-          properties:
-            participants:
-              type: array
-              items:
-                $ref: '#/components/schemas/ChatParticipant'
-
-    ChatCreateRequest:
-      type: object
-      required: [type, title]
-      properties:
-        type:
-          type: string
-          enum: [PRIVATE, GROUP, CHANNEL]
-        title: { type: string }
-        description: { type: string }
-        avatarUrl: { type: string }
-        participantIds:
-          type: array
-          items: { type: integer, format: int64 }
-
-    ChatUpdateRequest:
-      type: object
-      properties:
-        title: { type: string }
-        description: { type: string }
-        avatarUrl: { type: string }
-
-    ChatParticipant:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        chatId: { type: integer, format: int64 }
-        userId: { type: integer, format: int64 }
-        role:
-          type: string
-          enum: [MEMBER, ADMIN, OWNER]
-        joinedAt: { type: string, format: date-time }
-        leftAt: { type: string, format: date-time }
-        admin: { type: boolean }
-
-    AddParticipantsRequest:
-      type: object
-      required: [userIds]
-      properties:
-        userIds:
-          type: array
-          items: { type: integer, format: int64 }
-        role:
-          type: string
-          enum: [MEMBER, ADMIN]
-
-    ParticipantUpdateRequest:
-      type: object
-      properties:
-        role:
-          type: string
-          enum: [MEMBER, ADMIN, OWNER]
-        admin: { type: boolean }
-
-    Message:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        chatId: { type: integer, format: int64 }
-        senderId: { type: integer, format: int64 }
-        content: { type: string }
-        contentType:
-          type: string
-          enum: [TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO, STICKER, LOCATION]
-        attachmentUrl: { type: string }
-        attachmentName: { type: string }
-        replyToMessageId: { type: integer, format: int64 }
-        forwardedFromId: { type: integer, format: int64 }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-
-    MessageCreateRequest:
-      type: object
-      required: [contentType]
-      properties:
-        contentType:
-          type: string
-          enum: [TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO, STICKER, LOCATION]
-        content: { type: string }
-        attachmentUrl: { type: string }
-        attachmentName: { type: string }
-        replyToMessageId: { type: integer, format: int64 }
-        forwardedFromId: { type: integer, format: int64 }
-
-    MessageEditRequest:
-      type: object
-      properties:
-        content: { type: string }
-
-    MessageReadReceipt:
-      type: object
-      properties:
-        id: { type: integer, format: int64 }
-        messageId: { type: integer, format: int64 }
-        userId: { type: integer, format: int64 }
-        chatId: { type: integer, format: int64 }
-        readAt: { type: string, format: date-time }
