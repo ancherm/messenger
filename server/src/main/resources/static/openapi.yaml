@@ -1,0 +1,658 @@
+openapi: 3.0.3
+info:
+  title: Messenger API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8888/api
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegisterRequest'
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Auth success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    patch:
+      tags: [Users]
+      summary: Update current user
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by id
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+
+  /users:
+    get:
+      tags: [Users]
+      summary: Search users
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: query
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /chats:
+    get:
+      tags: [Chats]
+      summary: List my chats
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: List of chats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chat'
+    post:
+      tags: [Chats]
+      summary: Create chat
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCreateRequest'
+      responses:
+        '201':
+          description: Chat created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chat'
+
+  /chats/search:
+    get:
+      tags: [Chats]
+      summary: Search chats
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: query
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of chats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Chat'
+
+  /chats/{chatId}:
+    get:
+      tags: [Chats]
+      summary: Get chat by id
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      responses:
+        '200':
+          description: Chat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatWithParticipants'
+        '404':
+          description: Chat not found
+    patch:
+      tags: [Chats]
+      summary: Update chat
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatUpdateRequest'
+      responses:
+        '200':
+          description: Updated chat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Chat'
+    delete:
+      tags: [Chats]
+      summary: Delete or leave chat
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      responses:
+        '204':
+          description: Deleted
+
+  /chats/{chatId}/participants:
+    get:
+      tags: [Participants]
+      summary: List participants
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      responses:
+        '200':
+          description: Participants list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatParticipant'
+    post:
+      tags: [Participants]
+      summary: Add participants
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddParticipantsRequest'
+      responses:
+        '200':
+          description: Updated participants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatParticipant'
+
+  /chats/{chatId}/participants/{userId}:
+    patch:
+      tags: [Participants]
+      summary: Update participant role
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantUpdateRequest'
+      responses:
+        '200':
+          description: Updated participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatParticipant'
+    delete:
+      tags: [Participants]
+      summary: Remove participant
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Removed
+
+  /chats/{chatId}/messages:
+    get:
+      tags: [Messages]
+      summary: List messages in chat
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+        - name: before
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: after
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Messages list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+    post:
+      tags: [Messages]
+      summary: Send message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreateRequest'
+      responses:
+        '201':
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /messages/{messageId}:
+    get:
+      tags: [Messages]
+      summary: Get message by id
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+    patch:
+      tags: [Messages]
+      summary: Edit message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageEditRequest'
+      responses:
+        '200':
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+    delete:
+      tags: [Messages]
+      summary: Delete message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Deleted
+
+  /chats/{chatId}/messages/{messageId}/read:
+    post:
+      tags: [ReadReceipts]
+      summary: Mark message as read
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Marked as read
+
+  /chats/{chatId}/messages/{messageId}/readers:
+    get:
+      tags: [ReadReceipts]
+      summary: List readers of message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: List of read receipts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageReadReceipt'
+
+  /chats/{chatId}/pin:
+    post:
+      tags: [Pins]
+      summary: Pin chat
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      responses:
+        '204':
+          description: Pinned
+    delete:
+      tags: [Pins]
+      summary: Unpin chat
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+      responses:
+        '204':
+          description: Unpinned
+
+  /chats/{chatId}/messages/{messageId}/pin:
+    post:
+      tags: [Pins]
+      summary: Pin message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Pinned
+    delete:
+      tags: [Pins]
+      summary: Unpin message
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ChatId'
+        - name: messageId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '204':
+          description: Unpinned
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ChatId:
+      name: chatId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        email: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        avatarUrl: { type: string }
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE, AWAY]
+        lastSeenAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        active: { type: boolean }
+
+    UserRegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+
+    LoginResponse:
+      type: object
+      properties:
+        token: { type: string }
+        user:
+          $ref: '#/components/schemas/User'
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        avatarUrl: { type: string }
+        status:
+          type: string
+          enum: [ONLINE, OFFLINE, AWAY]
+
+    Chat:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        type:
+          type: string
+          enum: [PRIVATE, GROUP, CHANNEL]
+        title: { type: string }
+        description: { type: string }
+        avatarUrl: { type: string }
+        createdById: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ChatWithParticipants:
+      allOf:
+        - $ref: '#/components/schemas/Chat'
+        - type: object
+          properties:
+            participants:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChatParticipant'
+
+    ChatCreateRequest:
+      type: object
+      required: [type, title]
+      properties:
+        type:
+          type: string
+          enum: [PRIVATE, GROUP, CHANNEL]
+        title: { type: string }
+        description: { type: string }
+        avatarUrl: { type: string }
+        participantIds:
+          type: array
+          items: { type: integer, format: int64 }
+
+    ChatUpdateRequest:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        avatarUrl: { type: string }
+
+    ChatParticipant:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        chatId: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        role:
+          type: string
+          enum: [MEMBER, ADMIN, OWNER]
+        joinedAt: { type: string, format: date-time }
+        leftAt: { type: string, format: date-time }
+        admin: { type: boolean }
+
+    AddParticipantsRequest:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items: { type: integer, format: int64 }
+        role:
+          type: string
+          enum: [MEMBER, ADMIN]
+
+    ParticipantUpdateRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [MEMBER, ADMIN, OWNER]
+        admin: { type: boolean }
+
+    Message:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        chatId: { type: integer, format: int64 }
+        senderId: { type: integer, format: int64 }
+        content: { type: string }
+        contentType:
+          type: string
+          enum: [TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO, STICKER, LOCATION]
+        attachmentUrl: { type: string }
+        attachmentName: { type: string }
+        replyToMessageId: { type: integer, format: int64 }
+        forwardedFromId: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    MessageCreateRequest:
+      type: object
+      required: [contentType]
+      properties:
+        contentType:
+          type: string
+          enum: [TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO, STICKER, LOCATION]
+        content: { type: string }
+        attachmentUrl: { type: string }
+        attachmentName: { type: string }
+        replyToMessageId: { type: integer, format: int64 }
+        forwardedFromId: { type: integer, format: int64 }
+
+    MessageEditRequest:
+      type: object
+      properties:
+        content: { type: string }
+
+    MessageReadReceipt:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        messageId: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        chatId: { type: integer, format: int64 }
+        readAt: { type: string, format: date-time }

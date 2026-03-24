@@ -1,4 +1,7 @@
 spring:
+  web:
+    resources:
+      static-locations: classpath:/META-INF/resources/, classpath:/resources/, classpath:/static/, classpath:/public/
   application:
     name: server
   datasource:
@@ -21,6 +24,14 @@ logging:
 server:
   port: 8888
   address: 0.0.0.0
+
+#springdoc:
+#  api-docs:
+#    enabled: false
+#  swagger-ui:
+#    url: /openapi.yaml
+#    path: /swagger-ui.html
+
 
 jwt:
   secret: "randomsecretrandomsecretrandomsecretrandomsecretrandomsecretrandomsecret"
