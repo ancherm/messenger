@@ -6,11 +6,14 @@ services:
     container_name: messenger-db
     env_file:
       - .env
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_DB}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
-    restart: unless-stopped
 
 volumes:
   pgdata:
