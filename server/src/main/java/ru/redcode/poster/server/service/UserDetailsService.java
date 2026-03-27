@@ -5,6 +5,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import ru.redcode.poster.server.model.CustomUserDetails;
 import ru.redcode.poster.server.model.User;
 import ru.redcode.poster.server.repository.UserRepository;
 
@@ -21,7 +22,8 @@ public class UserDetailsService implements org.springframework.security.core.use
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
 
-        return new org.springframework.security.core.userdetails.User(
+        return new CustomUserDetails(
+                user.getId(),
                 user.getUsername(),
                 user.getPasswordHash(),
                 new ArrayList<>()

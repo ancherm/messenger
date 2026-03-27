@@ -8,12 +8,13 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
+import ru.redcode.poster.server.model.CustomUserDetails;
+import ru.redcode.poster.server.model.User;
 
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-
 @Component
 public class TokenManager {
 
@@ -22,13 +23,33 @@ public class TokenManager {
 
     public static final long TOKEN_VALIDITY = 10 * 60 * 60;
 
-    public String generateJwtToken(UserDetails userDetails) {
+    public String generateJwtTokenFromUserDetails(CustomUserDetails userDetails) {
         return Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .claim("userId", userDetails.getId())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + TOKEN_VALIDITY * 1000))
                 .signWith(getKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public Long getUserIdFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        Object userId = claims.get("userId");
+        return userId == null ? null : Long.valueOf(userId.toString());
+    }
+
+    public String getUsernameFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.getSubject();
     }
 
     public Boolean validateJwtToken(String token, UserDetails userDetails) {
@@ -39,15 +60,6 @@ public class TokenManager {
                 .parseClaimsJws(token)
                 .getBody();
         return (username.equals(userDetails.getUsername()) && !claims.getExpiration().before(new Date()));
-    }
-
-    public String getUsernameFromToken(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(getKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-        return claims.getSubject();
     }
 
     private Key getKey() {

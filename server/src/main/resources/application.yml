@@ -30,7 +30,7 @@ server:
 #    enabled: false
 #  swagger-ui:
 #    url: /openapi.yaml
-#    path: /swagger-ui.html
+#    path: /api-docs.html
 
 
 jwt:
