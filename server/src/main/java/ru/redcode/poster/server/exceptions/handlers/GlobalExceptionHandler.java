@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import ru.redcode.poster.server.dto.ApiError;
 import ru.redcode.poster.server.exceptions.EmailAlreadyExistsException;
 import ru.redcode.poster.server.exceptions.InvalidCredentialsException;
+import ru.redcode.poster.server.exceptions.UserNotFoundException;
 import ru.redcode.poster.server.exceptions.UsernameAlreadyExistsException;
 
 import java.time.Instant;
@@ -34,6 +35,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex) {
         return build(HttpStatus.UNAUTHORIZED, "Invalid username or password");
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiError> handleUserNotFound(UserNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

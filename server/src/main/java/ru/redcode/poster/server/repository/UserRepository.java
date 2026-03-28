@@ -1,8 +1,10 @@
 package ru.redcode.poster.server.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.repository.CrudRepository;
-import org.springframework.expression.spel.ast.OpAnd;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.redcode.poster.server.model.User;
 
@@ -15,4 +17,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);
+
+    @Query("""
+            SELECT u FROM User u WHERE
+            LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%'))
+            OR LOWER(COALESCE(u.firstName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+            OR LOWER(COALESCE(u.lastName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+            OR LOWER(COALESCE(u.phone, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+            """)
+    Page<User> searchByQuery(@Param("q") String q, Pageable pageable);
 }
