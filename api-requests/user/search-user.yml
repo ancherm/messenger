@@ -1,0 +1,31 @@
+info:
+  name: search-user
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: http://localhost:8888/users?query=ivan&page=0&size=10&sort=username,asc
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+  params:
+    - name: query
+      value: ivan
+      type: query
+    - name: page
+      value: "0"
+      type: query
+    - name: size
+      value: "10"
+      type: query
+    - name: sort
+      value: username,asc
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
