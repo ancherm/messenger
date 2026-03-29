@@ -13,6 +13,7 @@ import ru.redcode.poster.server.exceptions.EmailAlreadyExistsException;
 import ru.redcode.poster.server.exceptions.ForbiddenOperationException;
 import ru.redcode.poster.server.exceptions.InvalidCredentialsException;
 import ru.redcode.poster.server.exceptions.MessageNotFoundException;
+import ru.redcode.poster.server.exceptions.PhoneAlreadyExistsException;
 import ru.redcode.poster.server.exceptions.UserNotFoundException;
 import ru.redcode.poster.server.exceptions.UsernameAlreadyExistsException;
 
@@ -28,6 +29,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleEmailAlreadyExists(EmailAlreadyExistsException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(PhoneAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handlePhoneAlreadyExists(PhoneAlreadyExistsException ex) {
         return build(HttpStatus.CONFLICT, ex.getMessage());
     }
 

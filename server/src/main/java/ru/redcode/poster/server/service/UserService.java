@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.redcode.poster.server.dto.UserResponse;
 import ru.redcode.poster.server.dto.UserStatusRequest;
 import ru.redcode.poster.server.dto.UserUpdateRequest;
+import ru.redcode.poster.server.exceptions.PhoneAlreadyExistsException;
 import ru.redcode.poster.server.exceptions.UserNotFoundException;
 import ru.redcode.poster.server.model.User;
 import ru.redcode.poster.server.model.enums.UserStatus;
@@ -40,6 +41,9 @@ public class UserService {
             user.setLastName(dto.getLastName());
         }
         if (dto.getPhone() != null) {
+            if (userRepository.existsByPhoneAndIdNot(dto.getPhone(), userId)) {
+                throw new PhoneAlreadyExistsException("Phone number is already taken");
+            }
             user.setPhone(dto.getPhone());
         }
         if (dto.getAvatarUrl() != null) {
