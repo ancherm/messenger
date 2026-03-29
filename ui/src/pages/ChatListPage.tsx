@@ -1666,6 +1666,8 @@ function getConversationSubtitle(conversation: ConversationItem): string {
   }
 
   return "Личная переписка";
+}
+
 async function resolveConversationLastMessage(chat: Chat): Promise<string> {
   const directContent = chat.lastMessage?.content?.trim();
   if (directContent) {
