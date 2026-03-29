@@ -30,6 +30,9 @@ type UserProfilePageProps = {
   onClose?: () => void;
   userId?: number;
   readOnly?: boolean;
+  actionLabel?: string;
+  onAction?: (user: UserProfile) => void | Promise<void>;
+  actionLoading?: boolean;
 };
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
@@ -38,6 +41,9 @@ export default function UserProfilePage({
   onClose,
   userId,
   readOnly = false,
+  actionLabel,
+  onAction,
+  actionLoading = false,
 }: UserProfilePageProps = {}) {
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
@@ -324,15 +330,27 @@ export default function UserProfilePage({
 
           <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
             {isReadOnly ? (
-              <Chip
-                label="Read only"
-                sx={{
-                  bgcolor: "rgba(59,130,246,0.12)",
-                  color: "#93c5fd",
-                  border: "1px solid rgba(59,130,246,0.28)",
-                  fontWeight: 700,
-                }}
-              />
+              <>
+                <Chip
+                  label="Read only"
+                  sx={{
+                    bgcolor: "rgba(59,130,246,0.12)",
+                    color: "#93c5fd",
+                    border: "1px solid rgba(59,130,246,0.28)",
+                    fontWeight: 700,
+                  }}
+                />
+                {onAction ? (
+                  <Button
+                    variant="contained"
+                    onClick={() => void onAction(user)}
+                    disabled={actionLoading}
+                    sx={{ bgcolor: ACCENT, color: "#fff", "&:hover": { bgcolor: "#2563eb" } }}
+                  >
+                    {actionLoading ? "Opening..." : actionLabel ?? "Open"}
+                  </Button>
+                ) : null}
+              </>
             ) : editing ? (
               <>
                 <Button
