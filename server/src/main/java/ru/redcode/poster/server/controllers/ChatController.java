@@ -26,6 +26,7 @@ import ru.redcode.poster.server.dto.MessageResponse;
 import ru.redcode.poster.server.model.CustomUserDetails;
 import ru.redcode.poster.server.service.ChatMessageService;
 import ru.redcode.poster.server.service.ChatService;
+import ru.redcode.poster.server.service.PinService;
 
 import java.util.List;
 
@@ -36,6 +37,7 @@ public class ChatController {
 
     private final ChatService chatService;
     private final ChatMessageService chatMessageService;
+    private final PinService pinService;
 
     @GetMapping
     public ResponseEntity<List<ChatResponse>> list(@AuthenticationPrincipal CustomUserDetails user) {
@@ -110,6 +112,48 @@ public class ChatController {
         }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(chatMessageService.sendMessage(chatId, user.getId(), request));
+    }
+
+    @PostMapping("/{chatId:\\d+}/pin")
+    public ResponseEntity<Void> pinChat(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long chatId
+    ) {
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        pinService.pinChat(chatId, user.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{chatId:\\d+}/pin")
+    public ResponseEntity<Void> unpinChat(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long chatId
+    ) {
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        pinService.unpinChat(chatId, user.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{chatId:\\d+}/messages/{messageId:\\d+}/pin")
+    public ResponseEntity<Void> pinMessage(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long chatId,
+            @PathVariable Long messageId
+    ) {
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        pinService.pinMessage(chatId, messageId, user.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{chatId:\\d+}/messages/{messageId:\\d+}/pin")
+    public ResponseEntity<Void> unpinMessage(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @PathVariable Long chatId,
+            @PathVariable Long messageId
+    ) {
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        pinService.unpinMessage(chatId, messageId, user.getId());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{chatId:\\d+}/messages")

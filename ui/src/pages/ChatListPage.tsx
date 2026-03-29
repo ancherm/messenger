@@ -296,9 +296,28 @@ export default function ChatListPage() {
       setGroupProfileLoading(true);
       setGroupProfileError(null);
       const details = await chatsApi.getDetails(chatId);
+      const participants = await Promise.all(
+        details.participants.map(async (participant) => {
+          if (participant.user?.avatarUrl) {
+            return participant;
+          }
+
+          try {
+            const profile = await usersApi.getById(participant.userId);
+            return {
+              ...participant,
+              username: participant.username ?? profile.username,
+              user: profile,
+            };
+          } catch {
+            return participant;
+          }
+        })
+      );
+
       setGroupProfile({
         ...details,
-        participants: details.participants.filter((participant) => !participant.leftAt),
+        participants,
       });
       setGroupProfileOpen(true);
     } catch (loadError) {
@@ -1559,74 +1578,40 @@ export default function ChatListPage() {
               </Box>
 
               <Box>
-                {(() => {
-                  const activeParticipants = groupProfile.participants.filter(
-                    (participant) => !participant.leftAt
-                  );
-                  return (
-                    <>
-                      <Typography sx={{ color: "#fff", fontWeight: 600, mb: 1 }}>
-                        Участники ({activeParticipants.length})
-                      </Typography>
-                      <List sx={{ p: 0 }}>
-                        {activeParticipants.map((participant) => {
-                    const currentUserParticipant = currentUser
-                      ? groupProfile.participants.find((member) => member.userId === currentUser.id)
-                      : undefined;
-                    const canRemoveParticipants =
-                      currentUserParticipant?.role === "OWNER" || currentUserParticipant?.role === "ADMIN";
-                    const showRemoveButton =
-                      canRemoveParticipants &&
-                      participant.userId !== currentUser?.id &&
-                      participant.role !== "OWNER";
-
-                    return (
-                      <ListItemButton
-                        key={`group-member-${participant.userId}`}
-                        onClick={() => setSelectedUserId(participant.userId)}
-                        sx={{
-                          borderRadius: 2,
-                          mb: 0.5,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
-                        }}
-                      >
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-                          <ListItemAvatar>
-                            <Avatar>{participant.username?.[0]?.toUpperCase() ?? "U"}</Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={<Typography sx={{ color: "#fff" }}>{participant.username}</Typography>}
-                            secondary={
-                              <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
-                                {participant.role || "MEMBER"}
-                              </Typography>
-                            }
-                          />
-                        </Box>
-                        {showRemoveButton ? (
-                          <IconButton
-                            edge="end"
-                            size="small"
-                            color="inherit"
-                            disabled={removingParticipantId === participant.userId}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void removeGroupParticipant(participant.userId);
-                            }}
-                          >
-                            <DeleteOutlineRoundedIcon fontSize="small" />
-                          </IconButton>
-                        ) : null}
-                      </ListItemButton>
-                    );
-                  })}
-                      </List>
-                    </>
-                  );
-                })()}
+                <Typography sx={{ color: "#fff", fontWeight: 600, mb: 1 }}>
+                  Участники ({groupProfile.participants.length})
+                </Typography>
+                <List sx={{ p: 0 }}>
+                  {groupProfile.participants.map((participant) => (
+                    <ListItemButton
+                      key={`group-member-${participant.userId}`}
+                      onClick={() => setSelectedUserId(participant.userId)}
+                      sx={{
+                        borderRadius: 2,
+                        mb: 0.5,
+                        "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
+                      }}
+                    >
+                      <ListItemAvatar>
+                        <Avatar src={participant.user?.avatarUrl}>
+                          {(participant.user?.username ?? participant.username)?.[0]?.toUpperCase() ?? "U"}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Typography sx={{ color: "#fff" }}>
+                            {participant.user?.username ?? participant.username}
+                          </Typography>
+                        }
+                        secondary={
+                          <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                            {participant.role || "MEMBER"}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
               </Box>
             </Stack>
           ) : null}
@@ -1671,7 +1656,7 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
       chatType: source.type,
       name: source.title || buildGroupTitle(me, []),
       description: source.description,
-      lastMessage: source.lastMessage?.content || "Нет сообщений",
+      lastMessage: await resolveConversationLastMessage(source),
       avatarUrl: source.avatarUrl,
     };
   }

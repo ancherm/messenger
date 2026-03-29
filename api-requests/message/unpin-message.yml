@@ -1,0 +1,18 @@
+info:
+  name: unpin-message
+  type: http
+  seq: 11
+
+http:
+  method: delete
+  url: http://localhost:8888/api/chats/{{chatId}}/messages/{{msgId}}/pin
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+  auth: inherit
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
