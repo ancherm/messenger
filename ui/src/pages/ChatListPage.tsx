@@ -63,8 +63,16 @@ export default function ChatListPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
-    clearAuthSession();
-    navigate("/auth", { replace: true });
+    void (async () => {
+      try {
+        await usersApi.updateStatus("OFFLINE");
+      } catch {
+        // Ignore presence update errors on logout.
+      } finally {
+        clearAuthSession();
+        navigate("/auth", { replace: true });
+      }
+    })();
   }, [navigate]);
 
   const loadChats = useCallback(

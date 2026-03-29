@@ -41,6 +41,10 @@ export const usersApi = {
     return apiClient.patch("/users/me", data);
   },
 
+  updateStatus(status: "ONLINE" | "OFFLINE"): Promise<UserProfile> {
+    return apiClient.patch("/users/me/status", { status });
+  },
+
   async updateAvatar(id: number, file: File): Promise<UserProfile> {
     const formData = new FormData();
     formData.append("avatar", file);

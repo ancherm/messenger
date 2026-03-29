@@ -14,7 +14,6 @@ export interface UserProfile {
   lastName?: string;
   phone?: string;
   avatarUrl?: string;
-  bio?: string;
   status?: UserStatus | string;
   active?: boolean;
   lastSeenAt?: string;
@@ -48,10 +47,10 @@ export interface AuthResponse extends AuthTokens {
 }
 
 export interface UpdateUserRequest {
+  email?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
-  bio?: string;
   avatarUrl?: string;
   status?: UserStatus | string;
 }
