@@ -23,6 +23,8 @@ import ru.redcode.poster.server.model.User;
 import ru.redcode.poster.server.model.enums.UserStatus;
 import ru.redcode.poster.server.repository.UserRepository;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -47,6 +49,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setStatus(UserStatus.OFFLINE);
         user.setActive(false);
+        user.setCreatedAt(LocalDateTime.now());
 
         userRepository.save(user);
     }
