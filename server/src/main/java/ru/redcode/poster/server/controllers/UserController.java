@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.redcode.poster.server.dto.UserResponse;
+import ru.redcode.poster.server.dto.UserStatusRequest;
 import ru.redcode.poster.server.dto.UserUpdateRequest;
 import ru.redcode.poster.server.model.CustomUserDetails;
 import ru.redcode.poster.server.service.UserService;
@@ -44,6 +45,17 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         return ResponseEntity.ok(userService.updateMe(user.getId(), request));
+    }
+
+    @PatchMapping("/me/status")
+    public ResponseEntity<UserResponse> updateStatus(
+            @AuthenticationPrincipal CustomUserDetails user,
+            @Valid @RequestBody UserStatusRequest request
+    ) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(userService.updateStatus(user.getId(), request.getStatus()));
     }
 
     @GetMapping("/{id:\\d+}")
