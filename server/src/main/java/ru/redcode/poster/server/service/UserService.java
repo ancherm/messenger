@@ -62,7 +62,16 @@ public class UserService {
             return Page.empty(pageable);
         }
         String q = query.trim();
-        return userRepository.searchByQuery(q, pageable).map(u -> toResponse(u, false));
+        String onlyDigits = q.replaceAll("[^0-9]", "");
+
+        if (onlyDigits.length() >= 7 && onlyDigits.length() == q.length()) {
+            String phone10 = onlyDigits.substring(Math.max(0, onlyDigits.length() - 10));
+            return userRepository.findByPhoneEndingWith(phone10, pageable)
+                    .map(u -> toResponse(u, false));
+        }
+
+        return userRepository.findByUsernameIgnoreCase(q, pageable)
+                .map(u -> toResponse(u, false));
     }
 
     private static UserResponse toResponse(User user, boolean includeEmail) {
