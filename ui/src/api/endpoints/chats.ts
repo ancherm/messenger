@@ -1,5 +1,5 @@
 import { apiClient } from "../client";
-import type { Chat, CreateChatRequest, UpdateChatRequest } from "../types";
+import type { Chat, ChatDetailsResponse, CreateChatRequest, UpdateChatRequest } from "../types";
 
 export const chatsApi = {
   getAll(): Promise<Chat[]> {
@@ -7,6 +7,10 @@ export const chatsApi = {
   },
 
   getById(id: number): Promise<Chat> {
+    return apiClient.get(`/chats/${id}`);
+  },
+
+  getDetails(id: number): Promise<ChatDetailsResponse> {
     return apiClient.get(`/chats/${id}`);
   },
 

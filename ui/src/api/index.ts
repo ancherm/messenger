@@ -12,6 +12,7 @@ export type {
   SendMessageRequest,
   GetMessagesQuery,
   Chat,
+  ChatDetailsResponse,
   ChatType,
   ChatParticipant,
   CreateChatRequest,
