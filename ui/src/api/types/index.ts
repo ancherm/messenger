@@ -59,15 +59,17 @@ export interface Message {
   id: number;
   chatId?: number;
   senderId: number;
+  senderUsername?: string;
   receiverId?: number;
   content: string;
   contentType?: MessageContentType;
   replyToMessageId?: number;
-  attachmentUrl?: string;
-  attachmentName?: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   createdAt: string;
-  updatedAt: string;
-  read: boolean;
+  editedAt?: string | null;
+  updatedAt?: string;
+  read?: boolean;
 }
 
 export interface SendMessageRequest {

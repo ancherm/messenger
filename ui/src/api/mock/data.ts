@@ -100,7 +100,7 @@ export const mockChats: Chat[] = [
     peerUserId: 2,
     participantIds: [1, 2],
     lastMessage: mockMessages[0],
-    updatedAt: mockMessages[0].updatedAt,
+    updatedAt: mockMessages[0].updatedAt ?? mockMessages[0].createdAt,
     createdAt: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
@@ -109,7 +109,7 @@ export const mockChats: Chat[] = [
     peerUserId: 3,
     participantIds: [1, 3],
     lastMessage: mockMessages[1],
-    updatedAt: mockMessages[1].updatedAt,
+    updatedAt: mockMessages[1].updatedAt ?? mockMessages[1].createdAt,
     createdAt: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
@@ -118,7 +118,7 @@ export const mockChats: Chat[] = [
     peerUserId: 4,
     participantIds: [1, 4],
     lastMessage: mockMessages[2],
-    updatedAt: mockMessages[2].updatedAt,
+    updatedAt: mockMessages[2].updatedAt ?? mockMessages[2].createdAt,
     createdAt: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ];
