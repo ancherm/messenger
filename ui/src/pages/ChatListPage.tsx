@@ -1,33 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Box,
-  Typography,
-  List,
-  ListItemButton,
-  ListItemAvatar,
   Avatar,
-  ListItemText,
-  IconButton,
+  Box,
+  Button,
   Dialog,
   DialogContent,
-  TextField,
-  Button,
   Divider,
-  Paper,
+  IconButton,
+  List,
+  ListItemAvatar,
+  ListItemButton,
+  ListItemText,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
 } from "@mui/material";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import { useNavigate } from "react-router-dom";
+import { clearAuthSession } from "../auth/storage";
+import { chatsApi, messagesApi, usersApi, type Chat, type Message, type UserProfile } from "../api";
 import UserProfilePage from "./UserProfilePage";
-import {
-  authApi,
-  chatsApi,
-  messagesApi,
-  usersApi,
-  type Chat,
-  type Message,
-  type UserProfile,
-} from "../api";
 
 type ConversationItem = {
   chatId: number;
@@ -65,20 +61,14 @@ export default function ChatListPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const [sessionReady, setSessionReady] = useState(() => Boolean(localStorage.getItem("authToken")));
-  const [loginForm, setLoginForm] = useState({
-    username: "",
-    password: "",
-  });
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loggingIn, setLoggingIn] = useState(false);
+
+  const handleLogout = useCallback(() => {
+    clearAuthSession();
+    navigate("/auth", { replace: true });
+  }, [navigate]);
 
   const loadChats = useCallback(
     async (silent = false) => {
-      if (!sessionReady) {
-        return;
-      }
-
       if (!silent) {
         setLoadingChats(true);
       }
@@ -100,64 +90,43 @@ export default function ChatListPage() {
         });
       } catch (loadError) {
         if (isUnauthorizedError(loadError)) {
-          localStorage.removeItem("authToken");
-          setSessionReady(false);
-          setLoginError("Сессия недействительна. Войдите снова.");
-        } else {
-          setChatListError(loadError instanceof Error ? loadError.message : "Failed to load chats");
+          handleLogout();
+          return;
         }
+
+        setChatListError(loadError instanceof Error ? loadError.message : "Failed to load chats");
       } finally {
         if (!silent) {
           setLoadingChats(false);
         }
       }
     },
-    [sessionReady]
+    [handleLogout]
   );
 
-  const loadMessages = useCallback(
-    async (chatId: number, silent = false) => {
-      if (!sessionReady) {
-        return;
-      }
+  const loadMessages = useCallback(async (chatId: number, silent = false) => {
+    if (!silent) {
+      setLoadingMessages(true);
+    }
+    setMessagesError(null);
 
+    try {
+      const history = await messagesApi.getChatHistory(chatId, { limit: 50 });
+      setMessages(sortMessages(history));
+    } catch (loadError) {
+      setMessagesError(loadError instanceof Error ? loadError.message : "Failed to load messages");
+    } finally {
       if (!silent) {
-        setLoadingMessages(true);
+        setLoadingMessages(false);
       }
-      setMessagesError(null);
-
-      try {
-        const history = await messagesApi.getChatHistory(chatId, { limit: 50 });
-        setMessages(sortMessages(history));
-      } catch (loadError) {
-        setMessagesError(loadError instanceof Error ? loadError.message : "Failed to load messages");
-      } finally {
-        if (!silent) {
-          setLoadingMessages(false);
-        }
-      }
-    },
-    [sessionReady]
-  );
+    }
+  }, []);
 
   useEffect(() => {
-    if (!sessionReady) {
-      setConversations([]);
-      setCurrentUser(null);
-      setSelectedChatId(null);
-      setMessages([]);
-      setChatListError(null);
-      return;
-    }
-
     void loadChats();
-  }, [loadChats, sessionReady]);
+  }, [loadChats]);
 
   useEffect(() => {
-    if (!sessionReady) {
-      return;
-    }
-
     const intervalId = window.setInterval(() => {
       void loadChats(true);
     }, CHAT_REFRESH_MS);
@@ -165,20 +134,20 @@ export default function ChatListPage() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [loadChats, sessionReady]);
+  }, [loadChats]);
 
   useEffect(() => {
-    if (!sessionReady || !isValidChatId(selectedChatId)) {
+    if (!isValidChatId(selectedChatId)) {
       setMessages([]);
       setMessagesError(null);
       return;
     }
 
     void loadMessages(selectedChatId);
-  }, [loadMessages, selectedChatId, sessionReady]);
+  }, [loadMessages, selectedChatId]);
 
   useEffect(() => {
-    if (!sessionReady || !isValidChatId(selectedChatId)) {
+    if (!isValidChatId(selectedChatId)) {
       return;
     }
 
@@ -189,7 +158,7 @@ export default function ChatListPage() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [loadMessages, selectedChatId, sessionReady]);
+  }, [loadMessages, selectedChatId]);
 
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.chatId === selectedChatId) ?? null,
@@ -229,98 +198,13 @@ export default function ChatListPage() {
     }
   };
 
-  const handleLogin = async () => {
-    if (!loginForm.username.trim() || !loginForm.password.trim() || loggingIn) {
-      return;
-    }
-
-    try {
-      setLoggingIn(true);
-      setLoginError(null);
-      await authApi.login({
-        username: loginForm.username.trim(),
-        password: loginForm.password,
-      });
-      setSessionReady(true);
-    } catch (loginErr) {
-      setLoginError(loginErr instanceof Error ? loginErr.message : "Не удалось войти");
-    } finally {
-      setLoggingIn(false);
-    }
-  };
-
-  if (!sessionReady) {
-    return (
-      <Box
-        sx={{
-          minHeight: "100vh",
-          bgcolor: "#0b1222",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          p: 3,
-        }}
-      >
-        <Paper
-          elevation={0}
-          sx={{
-            width: "min(440px, 100%)",
-            p: 4,
-            borderRadius: 4,
-            bgcolor: "rgba(11, 27, 56, 0.92)",
-            color: "#fff",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <Typography variant="h5" sx={{ fontWeight: 800, mb: 1 }}>
-            Вход в Messenger
-          </Typography>
-          <Typography sx={{ color: "#8f9fb8", mb: 3 }}>
-            Сервер запущен на `localhost:8888`. Введите учетные данные, чтобы UI получал данные
-            только через API.
-          </Typography>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <TextField
-              label="Username"
-              value={loginForm.username}
-              onChange={(event) =>
-                setLoginForm((prev) => ({ ...prev, username: event.target.value }))
-              }
-              fullWidth
-              InputProps={{ sx: { color: "#e2e8f0", bgcolor: "#0b1b36" } }}
-            />
-            <TextField
-              label="Password"
-              type="password"
-              value={loginForm.password}
-              onChange={(event) =>
-                setLoginForm((prev) => ({ ...prev, password: event.target.value }))
-              }
-              fullWidth
-              InputProps={{ sx: { color: "#e2e8f0", bgcolor: "#0b1b36" } }}
-            />
-            {loginError && <Typography sx={{ color: "#fca5a5" }}>{loginError}</Typography>}
-            <Button
-              variant="contained"
-              onClick={() => void handleLogin()}
-              disabled={loggingIn}
-              sx={{ bgcolor: "#2563eb", "&:hover": { bgcolor: "#1d4ed8" } }}
-            >
-              {loggingIn ? "Входим..." : "Войти"}
-            </Button>
-          </Box>
-        </Paper>
-      </Box>
-    );
-  }
-
   return (
     <Box
       sx={{
         minHeight: "100vh",
         height: "100vh",
-        bgcolor: "#0b1222",
-        color: "#fff",
+        bgcolor: palette.shell,
+        color: palette.text,
         display: "flex",
         width: "100%",
         margin: 0,
@@ -401,7 +285,7 @@ export default function ChatListPage() {
 
         <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
           {loadingChats ? (
-            <Typography sx={{ color: "#64748b", p: 2 }}>Загрузка чатов...</Typography>
+            <Typography sx={{ color: palette.muted, p: 2 }}>Загрузка чатов...</Typography>
           ) : chatListError ? (
             <Typography sx={{ color: "#fca5a5", p: 2 }}>{chatListError}</Typography>
           ) : (
@@ -434,7 +318,7 @@ export default function ChatListPage() {
                   <ListItemText
                     primary={<Typography sx={{ color: "#fff", fontWeight: 500 }}>{chat.name}</Typography>}
                     secondary={
-                      <Typography sx={{ color: "#64748b", fontSize: "0.85rem" }}>
+                      <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
                         {chat.lastMessage}
                       </Typography>
                     }
@@ -481,7 +365,7 @@ export default function ChatListPage() {
               justifyContent: "center",
             }}
           >
-            <Typography sx={{ color: "#64748b", fontSize: "1.2rem" }}>Выберите чат</Typography>
+            <Typography sx={{ color: palette.muted, fontSize: "1.2rem" }}>Выберите чат</Typography>
           </Box>
         ) : (
           <>
@@ -502,7 +386,7 @@ export default function ChatListPage() {
                 <Typography sx={{ color: "#fff", fontWeight: 700 }}>
                   {selectedConversation.name}
                 </Typography>
-                <Typography sx={{ color: "#64748b", fontSize: "0.85rem" }}>
+                <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
                   Личная переписка
                 </Typography>
               </Box>
@@ -522,11 +406,11 @@ export default function ChatListPage() {
               }}
             >
               {loadingMessages ? (
-                <Typography sx={{ color: "#64748b" }}>Загрузка сообщений...</Typography>
+                <Typography sx={{ color: palette.muted }}>Загрузка сообщений...</Typography>
               ) : messagesError ? (
                 <Typography sx={{ color: "#fca5a5" }}>{messagesError}</Typography>
               ) : messages.length === 0 ? (
-                <Typography sx={{ color: "#64748b" }}>Сообщений пока нет</Typography>
+                <Typography sx={{ color: palette.muted }}>Сообщений пока нет</Typography>
               ) : (
                 <>
                   {messages.map((message) => {
@@ -767,7 +651,7 @@ function sortMessages(items: Message[]): Message[] {
 }
 
 function getChatId(chat: Chat): number | null {
-  const candidate = (chat as Chat & { chatId?: number | string }).chatId ?? chat.id;
+  const candidate = chat.chatId ?? chat.id;
   const normalized = typeof candidate === "string" ? Number(candidate) : candidate;
   return isValidChatId(normalized) ? normalized : null;
 }
