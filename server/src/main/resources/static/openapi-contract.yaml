@@ -514,4 +514,255 @@ paths:
       responses:
         '204':
           description: Сообщение откреплено
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 
+  parameters:
+    ChatId:
+      name: chatId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: ID чата
+
+  schemas:
+
+    # ======================
+    # AUTH
+    # ======================
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: username
+        password:
+          type: string
+          example: password123
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+
+    UserRegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+
+    # ======================
+    # USER
+    # ======================
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+          example: "online"
+        createdAt:
+          type: string
+          format: date-time
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        avatarUrl:
+          type: string
+        status:
+          type: string
+
+    # ======================
+    # CHAT
+    # ======================
+
+    ChatType:
+      type: string
+      enum: [PRIVATE, GROUP, CHANNEL]
+
+    Chat:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        type:
+          $ref: '#/components/schemas/ChatType'
+        avatarUrl:
+          type: string
+          nullable: true
+        lastMessage:
+          $ref: '#/components/schemas/Message'
+        createdAt:
+          type: string
+          format: date-time
+
+    ChatWithParticipants:
+      allOf:
+        - $ref: '#/components/schemas/Chat'
+        - type: object
+          properties:
+            participants:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChatParticipant'
+
+    ChatCreateRequest:
+      type: object
+      required: [type]
+      properties:
+        title:
+          type: string
+        type:
+          $ref: '#/components/schemas/ChatType'
+        participantIds:
+          type: array
+          items:
+            type: integer
+
+    ChatUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        avatarUrl:
+          type: string
+
+    # ======================
+    # PARTICIPANTS
+    # ======================
+
+    ParticipantRole:
+      type: string
+      enum: [OWNER, ADMIN, MEMBER]
+
+    ChatParticipant:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        role:
+          $ref: '#/components/schemas/ParticipantRole'
+        joinedAt:
+          type: string
+          format: date-time
+
+    AddParticipantsRequest:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items:
+            type: integer
+
+    ParticipantUpdateRequest:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/ParticipantRole'
+
+    # ======================
+    # MESSAGES
+    # ======================
+
+    MessageType:
+      type: string
+      enum: [TEXT, IMAGE, FILE, LOCATION]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        chatId:
+          type: integer
+        sender:
+          $ref: '#/components/schemas/User'
+        type:
+          $ref: '#/components/schemas/MessageType'
+        content:
+          type: string
+        mediaUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        editedAt:
+          type: string
+          nullable: true
+
+    MessageCreateRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          $ref: '#/components/schemas/MessageType'
+        content:
+          type: string
+        mediaUrl:
+          type: string
+
+    MessageEditRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    # ======================
+    # READ RECEIPTS
+    # ======================
+
+    MessageReadReceipt:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        readAt:
+          type: string
+          format: date-time
+
+    # ======================
+    # COMMON ERRORS
+    # ======================
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        statusCode:
+          type: integer

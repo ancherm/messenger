@@ -28,7 +28,7 @@ public class TokenManager {
                 .setSubject(userDetails.getUsername())
                 .claim("userId", userDetails.getId())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + TOKEN_VALIDITY * 1000))
+                .setExpiration(new Date(System.currentTimeMillis() + TOKEN_VALIDITY * 1000)) // 10 часов
                 .signWith(getKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
