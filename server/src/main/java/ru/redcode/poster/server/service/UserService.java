@@ -6,10 +6,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.redcode.poster.server.dto.UserResponse;
+import ru.redcode.poster.server.dto.UserStatusRequest;
 import ru.redcode.poster.server.dto.UserUpdateRequest;
 import ru.redcode.poster.server.exceptions.UserNotFoundException;
 import ru.redcode.poster.server.model.User;
+import ru.redcode.poster.server.model.enums.UserStatus;
 import ru.redcode.poster.server.repository.UserRepository;
+
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +49,18 @@ public class UserService {
             user.setStatus(dto.getStatus());
         }
 
+        userRepository.save(user);
+        return toResponse(user, true);
+    }
+
+    @Transactional
+    public UserResponse updateStatus(Long userId, UserStatus status) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+        user.setStatus(status);
+        if (status == UserStatus.OFFLINE) {
+            user.setLastSeenAt(LocalDateTime.now());
+        }
         userRepository.save(user);
         return toResponse(user, true);
     }

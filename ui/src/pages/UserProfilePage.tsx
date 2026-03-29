@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Alert,
@@ -18,13 +18,40 @@ import PersonIcon from "@mui/icons-material/Person";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import LinkIcon from "@mui/icons-material/Link";
 import { usersApi, type UpdateUserRequest, type UserProfile } from "../api";
+import { subscribeUserStatusChanged } from "../presence/presenceEvents";
 
 const ACCENT = "#3b82f6";
 const TEXT_MUTED = "#8f9fb8";
 const TEXT_PRIMARY = "#e2e8f0";
 const CARD_BACKGROUND = "rgba(11, 27, 56, 0.92)";
+
+const fieldSx = {
+  "& .MuiOutlinedInput-root": {
+    color: TEXT_PRIMARY,
+    bgcolor: "#0b1b36",
+    "& fieldset": {
+      borderColor: "rgba(255,255,255,0.14)",
+    },
+    "&:hover fieldset": {
+      borderColor: "rgba(59,130,246,0.42)",
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: ACCENT,
+    },
+  },
+  "& .MuiInputLabel-root": {
+    color: TEXT_MUTED,
+  },
+  "& .MuiInputLabel-root.Mui-focused": {
+    color: "#93c5fd",
+  },
+  "& .MuiInputBase-input::placeholder": {
+    color: "rgba(226,232,240,0.48)",
+    opacity: 1,
+  },
+};
 
 type UserProfilePageProps = {
   onClose?: () => void;
@@ -34,8 +61,6 @@ type UserProfilePageProps = {
   onAction?: (user: UserProfile) => void | Promise<void>;
   actionLoading?: boolean;
 };
-
-const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
 
 export default function UserProfilePage({
   onClose,
@@ -56,7 +81,6 @@ export default function UserProfilePage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -96,45 +120,44 @@ export default function UserProfilePage({
     };
   }, [resolvedUserId]);
 
-  const isOnline = useMemo(() => {
-    if (!user?.lastSeenAt) {
-      return false;
+  useEffect(() => {
+    if (isReadOnly) {
+      return;
     }
 
-    return Date.now() - new Date(user.lastSeenAt).getTime() < ONLINE_THRESHOLD_MS;
-  }, [user?.lastSeenAt]);
+    return subscribeUserStatusChanged((detail) => {
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: detail.status,
+              active: detail.active,
+              lastSeenAt:
+                detail.status === "OFFLINE" ? detail.lastSeenAt ?? prev.lastSeenAt : prev.lastSeenAt,
+            }
+          : prev
+      );
+      setForm((prev) => ({
+        ...prev,
+        status: detail.status,
+      }));
+    });
+  }, [isReadOnly]);
+
+  const isOnline = !!user && (isReadOnly ? user.status === "ONLINE" : user.status === "ONLINE" || user.active);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user || isReadOnly) {
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const updatedUser = await usersApi.updateAvatar(user.id, file);
-      setUser(updatedUser);
-      setForm(updatedUser);
-    } catch (avatarError) {
-      setError(avatarError instanceof Error ? avatarError.message : "Failed to update avatar");
-    } finally {
-      setSaving(false);
-      event.target.value = "";
-    }
-  };
-
   const handleSave = async () => {
     const payload: UpdateUserRequest = {
-      firstName: form.firstName,
-      lastName: form.lastName,
-      phone: form.phone,
-      bio: form.bio,
-      avatarUrl: form.avatarUrl,
+      email: form.email?.trim() || undefined,
+      firstName: form.firstName?.trim() || undefined,
+      lastName: form.lastName?.trim() || undefined,
+      phone: form.phone?.trim() || undefined,
+      avatarUrl: form.avatarUrl?.trim() || undefined,
       status: form.status,
     };
 
@@ -158,10 +181,10 @@ export default function UserProfilePage({
     }
 
     setForm({
+      email: user.email ?? undefined,
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone,
-      bio: user.bio,
       avatarUrl: user.avatarUrl,
       status: user.status,
     });
@@ -170,22 +193,12 @@ export default function UserProfilePage({
   };
 
   const formatLastSeen = (dateString?: string) => {
-    if (!dateString) return "—";
+    if (!dateString) {
+      return "-";
+    }
 
     const date = new Date(dateString);
-    const diff = Date.now() - date.getTime();
-    const day = 86_400_000;
-    const year = day * 365;
-
-    if (diff < day) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    }
-
-    if (diff < year) {
-      return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
-    }
-
-    return date.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "2-digit" });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   if (loading) {
@@ -209,32 +222,32 @@ export default function UserProfilePage({
     {
       icon: <PhoneIcon fontSize="small" />,
       label: "Phone",
-      value: (editing ? form.phone : user.phone) || "—",
+      value: user.phone || "-",
     },
     {
       icon: <AccountCircleIcon fontSize="small" />,
       label: "Username",
-      value: `@${(editing ? form.username : user.username) || "unknown"}`,
+      value: `@${user.username || "unknown"}`,
     },
     {
       icon: <EmailIcon fontSize="small" />,
       label: "Email",
-      value: (editing ? form.email : user.email) || "—",
+      value: user.email || "-",
     },
     {
       icon: <PersonIcon fontSize="small" />,
       label: "Full Name",
-      value:
-        [editing ? form.firstName : user.firstName, editing ? form.lastName : user.lastName]
-          .filter(Boolean)
-          .join(" ") || "—",
-    },
-    {
-      icon: <InfoOutlinedIcon fontSize="small" />,
-      label: "Bio",
-      value: (editing ? form.bio : user.bio) || "—",
+      value: [user.firstName, user.lastName].filter(Boolean).join(" ") || "-",
     },
   ];
+
+  if (!isReadOnly) {
+    infoRows.push({
+      icon: <LinkIcon fontSize="small" />,
+      label: "Avatar URL",
+      value: user.avatarUrl || "-",
+    });
+  }
 
   return (
     <Box
@@ -279,33 +292,6 @@ export default function UserProfilePage({
             <Avatar src={form.avatarUrl ?? user.avatarUrl} sx={{ width: 110, height: 110 }}>
               {user.username?.[0]?.toUpperCase() ?? "U"}
             </Avatar>
-            {!isReadOnly && editing && (
-              <IconButton
-                onClick={() => fileInputRef.current?.click()}
-                sx={{
-                  position: "absolute",
-                  bottom: -5,
-                  right: -5,
-                  bgcolor: "rgba(0,0,0,0.5)",
-                  color: "#fff",
-                  width: 32,
-                  height: 32,
-                  p: 0,
-                  "&:hover": { bgcolor: "rgba(0,0,0,0.8)" },
-                }}
-              >
-                <AccountCircleIcon fontSize="small" />
-              </IconButton>
-            )}
-            {!isReadOnly && (
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleAvatarChange}
-              />
-            )}
           </Box>
           <Typography variant="h5" sx={{ color: TEXT_PRIMARY, fontWeight: 800, mb: 0.5 }}>
             {fullName}
@@ -315,7 +301,7 @@ export default function UserProfilePage({
           </Typography>
 
           <Chip
-            label={isOnline ? "● Online" : `Last seen ${formatLastSeen(user.lastSeenAt)}`}
+            label={isOnline ? "Online" : `Last seen ${formatLastSeen(user.lastSeenAt)}`}
             sx={{
               bgcolor: isOnline ? "rgba(0,230,118,0.13)" : "rgba(255,255,255,0.06)",
               color: isOnline ? "#00e676" : TEXT_MUTED,
@@ -400,7 +386,7 @@ export default function UserProfilePage({
                 onChange={handleChange}
                 size="small"
                 fullWidth
-                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+                sx={fieldSx}
               />
               <TextField
                 label="Last Name"
@@ -409,7 +395,16 @@ export default function UserProfilePage({
                 onChange={handleChange}
                 size="small"
                 fullWidth
-                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+                sx={fieldSx}
+              />
+              <TextField
+                label="Email"
+                name="email"
+                value={form.email ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                sx={fieldSx}
               />
               <TextField
                 label="Phone"
@@ -418,18 +413,17 @@ export default function UserProfilePage({
                 onChange={handleChange}
                 size="small"
                 fullWidth
-                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+                sx={fieldSx}
               />
               <TextField
-                label="Bio"
-                name="bio"
-                value={form.bio ?? ""}
+                label="Avatar URL"
+                name="avatarUrl"
+                value={form.avatarUrl ?? ""}
                 onChange={handleChange}
                 size="small"
                 fullWidth
-                multiline
-                minRows={3}
-                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+                placeholder="https://example.com/avatar.png"
+                sx={fieldSx}
               />
             </Box>
           ) : (

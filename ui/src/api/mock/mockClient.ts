@@ -182,7 +182,7 @@ export class MockApiClient implements IApiClient {
       const chat = mockChats.find((item) => item.id === chatId);
       if (chat) {
         chat.lastMessage = message;
-        chat.updatedAt = message.updatedAt;
+        chat.updatedAt = message.updatedAt ?? message.createdAt;
       }
 
       return message as T;
@@ -221,6 +221,7 @@ export class MockApiClient implements IApiClient {
       mockMessages[index] = {
         ...mockMessages[index],
         ...(body as Partial<Message>),
+        editedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       return mockMessages[index] as T;
