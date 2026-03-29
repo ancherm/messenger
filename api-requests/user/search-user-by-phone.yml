@@ -1,0 +1,22 @@
+info:
+  name: search-user-by-phone
+  type: http
+  seq: 7
+
+http:
+  method: get
+  url: http://localhost:8888/api/users?query=9990001122
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+  params:
+    - name: query
+      value: "9990001122"
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

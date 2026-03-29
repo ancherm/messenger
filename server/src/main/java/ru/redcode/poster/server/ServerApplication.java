@@ -24,7 +24,7 @@ public class ServerApplication {
 				dotenvEntry -> System.setProperty(dotenvEntry.getKey(), dotenvEntry.getValue())
 		);
 
-		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+		TimeZone.setDefault(TimeZone.getTimeZone("UTC+04:00"));
 
 		SpringApplication.run(ServerApplication.class, args);
 	}
