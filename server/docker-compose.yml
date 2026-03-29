@@ -2,18 +2,42 @@ version: '3.8'
 
 services:
   postgres-db:
-    image: postgres
+    image: postgres:18
     container_name: messenger-db
     env_file:
-      - .env
-    environment:
-      POSTGRES_USER: ${DATABASE_USERNAME}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_DB}
+      - .env-db
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
+    networks:
+      - main
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"${POSTGRES_USER}\" -d \"${POSTGRES_DB}\" || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile-java
+    container_name: java-app
+    profiles:
+      - full
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    env_file:
+      - .env-java
+    ports:
+      - "8888:8888"
+    networks:
+      - main
+
+networks:
+  main:
 
 volumes:
   pgdata:

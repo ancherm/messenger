@@ -10,9 +10,18 @@ import java.util.TimeZone;
 public class ServerApplication {
 
 	public static void main(String[] args) {
-		Dotenv dotenv = Dotenv.load();
+
+//		String useDotenv = System.getProperty("USE_DOTENV", "true");
+//		if ("true".equals(useDotenv)) {
+//			Dotenv dotenv = Dotenv.load();
+//			dotenv.entries().forEach(entry ->
+//					System.setProperty(entry.getKey(), entry.getValue())
+//			);
+//		}
+
+		Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
 		dotenv.entries().forEach(
-				dotenvEntry ->  System.setProperty(dotenvEntry.getKey(), dotenvEntry.getValue())
+				dotenvEntry -> System.setProperty(dotenvEntry.getKey(), dotenvEntry.getValue())
 		);
 
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
