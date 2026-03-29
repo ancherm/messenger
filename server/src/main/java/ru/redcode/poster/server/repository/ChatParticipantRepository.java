@@ -21,7 +21,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
             """)
     List<Chat> findActiveChatsForUserOrderByUpdated(@Param("userId") Long userId);
 
-    @Query(""
+    @Query("""
             SELECT cp FROM ChatParticipant cp
             WHERE cp.chat.id = :chatId AND cp.user.id = :userId
             """)
