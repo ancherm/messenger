@@ -64,6 +64,12 @@ public class AuthService {
                 )
         );
 
+        var user = userRepository.findByUsername(request.getUsername());
+        user.ifPresent(u -> {
+            u.setStatus(UserStatus.ONLINE);
+            userRepository.save(u);
+        });
+
         CustomUserDetails userDetail = (CustomUserDetails) authentication.getPrincipal();
         String token = tokenManager.generateJwtTokenFromUserDetails(userDetail);
 
