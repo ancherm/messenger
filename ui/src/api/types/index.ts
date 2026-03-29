@@ -91,6 +91,9 @@ export interface ChatParticipant {
   userId: number;
   role?: string;
   user?: UserProfile;
+  username?: string;
+  joinedAt?: string;
+  leftAt?: string | null;
 }
 
 export interface Chat {
@@ -99,12 +102,18 @@ export interface Chat {
   type: ChatType;
   title?: string;
   description?: string;
+  avatarUrl?: string;
   participantIds?: number[];
   participants?: ChatParticipant[];
   peerUserId?: number;
   lastMessage?: Message;
   updatedAt: string;
   createdAt: string;
+}
+
+export interface ChatDetailsResponse {
+  chat: Chat;
+  participants: ChatParticipant[];
 }
 
 export interface CreateChatRequest {

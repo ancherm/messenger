@@ -3,8 +3,10 @@ import {
   Avatar,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   InputAdornment,
@@ -18,6 +20,7 @@ import {
   Typography,
 } from "@mui/material";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import AddCircleOutlineRoundedIcon from "@mui/icons-material/AddCircleOutlineRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -28,23 +31,36 @@ import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useNavigate } from "react-router-dom";
-import { chatsApi, messagesApi, usersApi, type Chat, type Message, type UserProfile } from "../api";
+import {
+  chatsApi,
+  type ChatDetailsResponse,
+  messagesApi,
+  usersApi,
+  type Chat,
+  type ChatType,
+  type Message,
+  type UserProfile,
+} from "../api";
 import { clearAuthSession } from "../auth/storage";
 import UserProfilePage from "./UserProfilePage";
 
 type ConversationItem = {
   chatId: number;
+  chatType?: ChatType;
   userId?: number;
   name: string;
+  description?: string;
   lastMessage: string;
   avatarUrl?: string;
 };
 
 type SearchMode = "people" | "chats" | null;
+type CreateChatMode = "GROUP" | null;
 
 const CHAT_REFRESH_MS = 5000;
 const MESSAGE_REFRESH_MS = 3000;
 const PEOPLE_SEARCH_MIN_LENGTH = 3;
+const PARTICIPANT_SEARCH_MIN_LENGTH = 2;
 
 const palette = {
   shell: "#0b1222",
@@ -78,7 +94,21 @@ export default function ChatListPage() {
   const [peopleResults, setPeopleResults] = useState<UserProfile[]>([]);
   const [peopleSearchLoading, setPeopleSearchLoading] = useState(false);
   const [peopleSearchError, setPeopleSearchError] = useState<string | null>(null);
+  const [startingChatUserId, setStartingChatUserId] = useState<number | null>(null);
   const [deletingChatId, setDeletingChatId] = useState<number | null>(null);
+  const [createChatMode, setCreateChatMode] = useState<CreateChatMode>(null);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [participantQuery, setParticipantQuery] = useState("");
+  const [participantResults, setParticipantResults] = useState<UserProfile[]>([]);
+  const [participantSearchLoading, setParticipantSearchLoading] = useState(false);
+  const [participantSearchError, setParticipantSearchError] = useState<string | null>(null);
+  const [selectedParticipants, setSelectedParticipants] = useState<UserProfile[]>([]);
+  const [creatingChat, setCreatingChat] = useState(false);
+  const [groupProfileOpen, setGroupProfileOpen] = useState(false);
+  const [groupProfileLoading, setGroupProfileLoading] = useState(false);
+  const [groupProfileError, setGroupProfileError] = useState<string | null>(null);
+  const [groupProfile, setGroupProfile] = useState<ChatDetailsResponse | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
@@ -228,6 +258,54 @@ export default function ChatListPage() {
       setSending(false);
     }
   };
+
+  const handleOpenPrivateChat = useCallback(
+    async (user: UserProfile) => {
+      if (startingChatUserId === user.id) {
+        return;
+      }
+
+      try {
+        setStartingChatUserId(user.id);
+        setPeopleSearchError(null);
+        const chat = await chatsApi.create({
+          type: "PRIVATE",
+          peerUserId: user.id,
+        });
+
+        await loadChats(true);
+        const nextChatId = getChatId(chat);
+        if (isValidChatId(nextChatId)) {
+          setSelectedChatId(nextChatId);
+        }
+        setSelectedUserId(null);
+      } catch (createError) {
+        setPeopleSearchError(
+          createError instanceof Error ? createError.message : "Не удалось открыть личный чат"
+        );
+      } finally {
+        setStartingChatUserId(null);
+      }
+    },
+    [loadChats, startingChatUserId]
+  );
+
+  const loadGroupProfile = useCallback(async (chatId: number) => {
+    try {
+      setGroupProfileLoading(true);
+      setGroupProfileError(null);
+      const details = await chatsApi.getDetails(chatId);
+      setGroupProfile(details);
+      setGroupProfileOpen(true);
+    } catch (loadError) {
+      setGroupProfileError(
+        loadError instanceof Error ? loadError.message : "Не удалось загрузить профиль группы"
+      );
+      setGroupProfileOpen(true);
+    } finally {
+      setGroupProfileLoading(false);
+    }
+  }, []);
 
   const handleDeleteChat = useCallback(
     async (chat: ConversationItem) => {
@@ -416,6 +494,71 @@ export default function ChatListPage() {
     };
   }, [searchMode, searchPeople, searchQuery]);
 
+  const searchParticipants = useCallback(
+    async (query: string) => {
+      const normalizedQuery = query.trim().toLowerCase();
+
+      if (!normalizedQuery || normalizedQuery.length < PARTICIPANT_SEARCH_MIN_LENGTH) {
+        setParticipantResults([]);
+        setParticipantSearchError(null);
+        return;
+      }
+
+      try {
+        setParticipantSearchLoading(true);
+        setParticipantSearchError(null);
+        const foundUsers = await usersApi.search(normalizedQuery, 20);
+        const selectedIds = new Set(selectedParticipants.map((participant) => participant.id));
+
+        setParticipantResults(
+          foundUsers.filter((user) => {
+            if (currentUser && user.id === currentUser.id) {
+              return false;
+            }
+
+            if (selectedIds.has(user.id)) {
+              return false;
+            }
+
+            return matchesUserQuery(user, normalizedQuery);
+          })
+        );
+      } catch (searchError) {
+        setParticipantSearchError(
+          searchError instanceof Error ? searchError.message : "Не удалось найти участников"
+        );
+      } finally {
+        setParticipantSearchLoading(false);
+      }
+    },
+    [currentUser, selectedParticipants]
+  );
+
+  useEffect(() => {
+    if (!createChatMode) {
+      setParticipantResults([]);
+      setParticipantSearchLoading(false);
+      setParticipantSearchError(null);
+      return;
+    }
+
+    const normalizedQuery = participantQuery.trim();
+    if (!normalizedQuery || normalizedQuery.length < PARTICIPANT_SEARCH_MIN_LENGTH) {
+      setParticipantResults([]);
+      setParticipantSearchLoading(false);
+      setParticipantSearchError(null);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void searchParticipants(normalizedQuery);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [createChatMode, participantQuery, searchParticipants]);
+
   const filteredChats = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
@@ -424,7 +567,7 @@ export default function ChatListPage() {
     }
 
     return conversations.filter((conversation) => {
-      const haystack = `${conversation.name} ${conversation.lastMessage}`.toLowerCase();
+      const haystack = `${conversation.name} ${conversation.description ?? ""} ${conversation.lastMessage}`.toLowerCase();
       return haystack.includes(normalizedQuery);
     });
   }, [conversations, searchQuery]);
@@ -450,6 +593,55 @@ export default function ChatListPage() {
     setSearchQuery("");
     setPeopleResults([]);
     setPeopleSearchError(null);
+  };
+
+  const resetCreateChatDialog = () => {
+    setCreateChatMode(null);
+    setCreateTitle("");
+    setCreateDescription("");
+    setParticipantQuery("");
+    setParticipantResults([]);
+    setParticipantSearchLoading(false);
+    setParticipantSearchError(null);
+    setSelectedParticipants([]);
+    setCreatingChat(false);
+  };
+
+  const handleCreateChat = async () => {
+    if (selectedParticipants.length === 0 || creatingChat) {
+      return;
+    }
+
+    const generatedTitle = buildGroupTitle(currentUser, selectedParticipants);
+    const finalTitle = createTitle.trim() || generatedTitle;
+
+    if (!finalTitle) {
+      setParticipantSearchError("Добавьте участников, чтобы собрать название группы");
+      return;
+    }
+
+    try {
+      setCreatingChat(true);
+      setParticipantSearchError(null);
+      const chat = await chatsApi.create({
+        type: "GROUP",
+        title: finalTitle,
+        description: createDescription.trim() || undefined,
+        participantIds: selectedParticipants.map((participant) => participant.id),
+      });
+
+      await loadChats(true);
+      const nextChatId = getChatId(chat);
+      if (isValidChatId(nextChatId)) {
+        setSelectedChatId(nextChatId);
+      }
+      resetCreateChatDialog();
+    } catch (createError) {
+      setParticipantSearchError(
+        createError instanceof Error ? createError.message : "Не удалось создать чат"
+      );
+      setCreatingChat(false);
+    }
   };
 
   const searchPlaceholder =
@@ -596,6 +788,24 @@ export default function ChatListPage() {
             </Button>
           </Stack>
 
+          <Button
+            fullWidth
+            size="small"
+            variant="outlined"
+            startIcon={<AddCircleOutlineRoundedIcon />}
+            onClick={() => setCreateChatMode("GROUP")}
+            sx={{
+              mt: 1.25,
+              borderColor: "rgba(255,255,255,0.14)",
+              color: "#e2e8f0",
+              borderRadius: 3,
+              py: 0.9,
+              justifyContent: "flex-start",
+            }}
+          >
+            Создать групповой чат
+          </Button>
+
           {searchMode ? (
             <TextField
               value={searchQuery}
@@ -701,12 +911,31 @@ export default function ChatListPage() {
                     }}
                   >
                     <ListItemAvatar>
-                      <Avatar src={chat.avatarUrl} sx={{ bgcolor: "#3f51b5", mr: 1 }}>
+                      <Avatar
+                        src={chat.avatarUrl}
+                        sx={{ bgcolor: chat.chatType === "PRIVATE" ? "#3f51b5" : "#0f766e", mr: 1 }}
+                      >
                         {chat.name[0]}
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText
-                      primary={<Typography sx={{ color: "#fff", fontWeight: 500 }}>{chat.name}</Typography>}
+                      primary={
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Typography sx={{ color: "#fff", fontWeight: 500 }}>{chat.name}</Typography>
+                          {chat.chatType === "GROUP" ? (
+                            <Chip
+                              label="Группа"
+                              size="small"
+                              sx={{
+                                height: 20,
+                                bgcolor: "rgba(20,184,166,0.16)",
+                                color: "#99f6e4",
+                                border: "1px solid rgba(20,184,166,0.28)",
+                              }}
+                            />
+                          ) : null}
+                        </Stack>
+                      }
                       secondary={
                         <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
                           {chat.lastMessage}
@@ -762,8 +991,12 @@ export default function ChatListPage() {
             sx={{
               flex: 1,
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
+              gap: 1,
+              px: 3,
+              textAlign: "center",
             }}
           >
             <Typography sx={{ color: palette.muted, fontSize: "1.2rem" }}>Выберите чат</Typography>
@@ -787,14 +1020,22 @@ export default function ChatListPage() {
                   onClick={() => {
                     if (selectedConversation.userId) {
                       setSelectedUserId(selectedConversation.userId);
+                      return;
+                    }
+
+                    if (selectedConversation.chatType === "GROUP") {
+                      void loadGroupProfile(selectedConversation.chatId);
                     }
                   }}
                   sx={{
                     width: 44,
                     height: 44,
-                    cursor: selectedConversation.userId ? "pointer" : "default",
+                    cursor:
+                      selectedConversation.userId || selectedConversation.chatType === "GROUP"
+                        ? "pointer"
+                        : "default",
                     transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                    "&:hover": selectedConversation.userId
+                    "&:hover": selectedConversation.userId || selectedConversation.chatType === "GROUP"
                       ? {
                           transform: "scale(1.04)",
                           boxShadow: "0 0 0 3px rgba(59,130,246,0.18)",
@@ -809,6 +1050,9 @@ export default function ChatListPage() {
                     {selectedConversation.name}
                   </Typography>
                   <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                    {getConversationSubtitle(selectedConversation)}
+                  </Typography>
+                  <Typography sx={{ color: palette.muted, fontSize: "0.85rem", display: "none" }}>
                     Личная переписка
                   </Typography>
                 </Box>
@@ -1088,7 +1332,241 @@ export default function ChatListPage() {
               onClose={() => setSelectedUserId(null)}
               userId={selectedUserId}
               readOnly
+              actionLabel="Написать"
+              actionLoading={startingChatUserId === selectedUserId}
+              onAction={(user) => handleOpenPrivateChat(user)}
             />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={createChatMode !== null}
+        onClose={resetCreateChatDialog}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            bgcolor: "#0f172a",
+            color: "#fff",
+            borderRadius: 4,
+            border: "1px solid rgba(255,255,255,0.08)",
+          },
+        }}
+      >
+        <DialogTitle>Создать групповой чат</DialogTitle>
+        <DialogContent sx={{ pt: "8px !important" }}>
+          <Stack spacing={2}>
+            <TextField
+              label="Название группового чата"
+              value={createTitle}
+              onChange={(event) => setCreateTitle(event.target.value)}
+              fullWidth
+              helperText={
+                selectedParticipants.length > 0
+                  ? `Если оставить пустым, будет: ${buildGroupTitle(currentUser, selectedParticipants)}`
+                  : "Можно ввести свое название или собрать его автоматически из ников"
+              }
+              InputProps={{
+                sx: {
+                  color: "#e2e8f0",
+                  bgcolor: "rgba(255,255,255,0.05)",
+                  borderRadius: 3,
+                },
+              }}
+            />
+            <TextField
+              label="Описание"
+              value={createDescription}
+              onChange={(event) => setCreateDescription(event.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+              InputProps={{
+                sx: {
+                  color: "#e2e8f0",
+                  bgcolor: "rgba(255,255,255,0.05)",
+                  borderRadius: 3,
+                },
+              }}
+            />
+            <TextField
+              label="Добавить участников"
+              value={participantQuery}
+              onChange={(event) => setParticipantQuery(event.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <AddCircleOutlineRoundedIcon sx={{ color: "#94a3b8" }} />
+                  </InputAdornment>
+                ),
+                sx: {
+                  color: "#e2e8f0",
+                  bgcolor: "rgba(255,255,255,0.05)",
+                  borderRadius: 3,
+                },
+              }}
+            />
+
+            {selectedParticipants.length > 0 ? (
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                {selectedParticipants.map((participant) => (
+                  <Chip
+                    key={`participant-chip-${participant.id}`}
+                    label={`@${participant.username}`}
+                    onDelete={() =>
+                      setSelectedParticipants((prev) =>
+                        prev.filter((item) => item.id !== participant.id)
+                      )
+                    }
+                    sx={{
+                      bgcolor: "rgba(59,130,246,0.12)",
+                      color: "#bfdbfe",
+                      border: "1px solid rgba(59,130,246,0.28)",
+                    }}
+                  />
+                ))}
+              </Stack>
+            ) : null}
+
+            {participantSearchError ? (
+              <Typography sx={{ color: "#fca5a5", fontSize: "0.9rem" }}>
+                {participantSearchError}
+              </Typography>
+            ) : null}
+
+            {participantSearchLoading ? (
+              <Typography sx={{ color: palette.muted }}>Ищем пользователей...</Typography>
+            ) : participantResults.length > 0 ? (
+              <List sx={{ maxHeight: 220, overflow: "auto", p: 0 }}>
+                {participantResults.map((user) => {
+                  const fullName =
+                    [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username;
+
+                  return (
+                    <ListItemButton
+                      key={`create-chat-user-${user.id}`}
+                      onClick={() => {
+                        setSelectedParticipants((prev) => [...prev, user]);
+                        setParticipantQuery("");
+                        setParticipantResults([]);
+                      }}
+                      sx={{
+                        borderRadius: 2,
+                        mb: 0.5,
+                        "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
+                      }}
+                    >
+                      <ListItemAvatar>
+                        <Avatar src={user.avatarUrl}>{fullName[0]?.toUpperCase() ?? "U"}</Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={<Typography sx={{ color: "#fff" }}>{fullName}</Typography>}
+                        secondary={
+                          <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                            @{user.username}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </List>
+            ) : (
+              <Typography sx={{ color: palette.muted }}>
+                Добавьте одного или нескольких участников в групповой чат.
+              </Typography>
+            )}
+
+            <Stack direction="row" spacing={1.25} justifyContent="flex-end">
+              <Button
+                variant="outlined"
+                onClick={resetCreateChatDialog}
+                disabled={creatingChat}
+                sx={{ borderColor: "rgba(255,255,255,0.18)", color: "#e2e8f0" }}
+              >
+                Отмена
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => void handleCreateChat()}
+                disabled={selectedParticipants.length === 0 || creatingChat}
+                sx={{ bgcolor: "#2563eb", "&:hover": { bgcolor: "#1d4ed8" } }}
+              >
+                {creatingChat ? "Создаем..." : "Создать группу"}
+              </Button>
+            </Stack>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={groupProfileOpen}
+        onClose={() => {
+          setGroupProfileOpen(false);
+          setGroupProfile(null);
+          setGroupProfileError(null);
+        }}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{
+          sx: {
+            bgcolor: "#0f172a",
+            color: "#fff",
+            borderRadius: 4,
+            border: "1px solid rgba(255,255,255,0.08)",
+          },
+        }}
+      >
+        <DialogTitle>Профиль группы</DialogTitle>
+        <DialogContent sx={{ pt: "8px !important" }}>
+          {groupProfileLoading ? (
+            <Typography sx={{ color: palette.muted }}>Загрузка группы...</Typography>
+          ) : groupProfileError ? (
+            <Typography sx={{ color: "#fca5a5" }}>{groupProfileError}</Typography>
+          ) : groupProfile ? (
+            <Stack spacing={2}>
+              <Box>
+                <Typography sx={{ color: "#fff", fontWeight: 700, fontSize: "1.1rem" }}>
+                  {groupProfile.chat.title || "Групповой чат"}
+                </Typography>
+                <Typography sx={{ color: palette.muted, mt: 0.5 }}>
+                  {groupProfile.chat.description || "Описание пока не добавлено"}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography sx={{ color: "#fff", fontWeight: 600, mb: 1 }}>
+                  Участники ({groupProfile.participants.length})
+                </Typography>
+                <List sx={{ p: 0 }}>
+                  {groupProfile.participants.map((participant) => (
+                    <ListItemButton
+                      key={`group-member-${participant.userId}`}
+                      onClick={() => setSelectedUserId(participant.userId)}
+                      sx={{
+                        borderRadius: 2,
+                        mb: 0.5,
+                        "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
+                      }}
+                    >
+                      <ListItemAvatar>
+                        <Avatar>{participant.username?.[0]?.toUpperCase() ?? "U"}</Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={<Typography sx={{ color: "#fff" }}>{participant.username}</Typography>}
+                        secondary={
+                          <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                            {participant.role || "MEMBER"}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Box>
+            </Stack>
           ) : null}
         </DialogContent>
       </Dialog>
@@ -1110,10 +1588,12 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
 
   if (!chat.peerUserId && !chat.participantIds?.length && !chat.participants?.length) {
     try {
-      const fullChat = await chatsApi.getById(normalizedChatId);
+      const fullChat = await chatsApi.getDetails(normalizedChatId);
       source = {
-        ...fullChat,
-        id: getChatId(fullChat) ?? normalizedChatId,
+        ...fullChat.chat,
+        participants: fullChat.participants,
+        participantIds: fullChat.participants.map((participant) => participant.userId),
+        id: getChatId(fullChat.chat) ?? normalizedChatId,
       };
     } catch {
       source = {
@@ -1121,6 +1601,17 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
         id: normalizedChatId,
       };
     }
+  }
+
+  if (source.type !== "PRIVATE") {
+    return {
+      chatId: source.id,
+      chatType: source.type,
+      name: source.title || buildGroupTitle(me, []),
+      description: source.description,
+      lastMessage: source.lastMessage?.content || "Нет сообщений",
+      avatarUrl: source.avatarUrl,
+    };
   }
 
   const otherUserId =
@@ -1132,6 +1623,7 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
     if (source.title) {
       return {
         chatId: source.id,
+        chatType: source.type,
         name: source.title,
         lastMessage: await resolveConversationLastMessage(source),
       };
@@ -1146,6 +1638,7 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
 
   return {
     chatId: source.id,
+    chatType: source.type,
     userId: otherUser.id,
     name: fullName,
     lastMessage: await resolveConversationLastMessage(source),
@@ -1153,6 +1646,26 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
   };
 }
 
+function matchesUserQuery(user: UserProfile, query: string): boolean {
+  const normalizedQuery = query.toLowerCase();
+  const username = user.username.toLowerCase();
+  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").toLowerCase();
+
+  return username.includes(normalizedQuery) || fullName.includes(normalizedQuery);
+}
+
+function buildGroupTitle(currentUser: UserProfile | null, participants: UserProfile[]): string {
+  return [currentUser?.username, ...participants.map((participant) => participant.username)]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getConversationSubtitle(conversation: ConversationItem): string {
+  if (conversation.chatType === "GROUP") {
+    return "Групповой чат";
+  }
+
+  return "Личная переписка";
 async function resolveConversationLastMessage(chat: Chat): Promise<string> {
   const directContent = chat.lastMessage?.content?.trim();
   if (directContent) {
