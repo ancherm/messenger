@@ -48,7 +48,7 @@ public class AuthService {
         user.setEmail(request.getEmail());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setStatus(UserStatus.OFFLINE);
-        user.setActive(false);
+        user.setActive(true);
         user.setCreatedAt(LocalDateTime.now());
 
         userRepository.save(user);
