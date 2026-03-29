@@ -21,6 +21,14 @@ export const messagesApi = {
     return apiClient.patch(`/messages/${id}`, { content });
   },
 
+  pin(chatId: number, messageId: number): Promise<void> {
+    return apiClient.post(`/chats/${chatId}/messages/${messageId}/pin`);
+  },
+
+  unpin(chatId: number, messageId: number): Promise<void> {
+    return apiClient.delete(`/chats/${chatId}/messages/${messageId}/pin`);
+  },
+
   delete(id: number): Promise<void> {
     return apiClient.delete(`/messages/${id}`);
   },

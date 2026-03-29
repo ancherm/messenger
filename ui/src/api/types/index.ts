@@ -68,6 +68,7 @@ export interface Message {
   attachmentName?: string | null;
   createdAt: string;
   editedAt?: string | null;
+  pinned?: boolean;
   updatedAt?: string;
   read?: boolean;
 }
