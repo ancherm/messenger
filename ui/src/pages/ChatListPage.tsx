@@ -7,6 +7,7 @@ import {
   DialogContent,
   Divider,
   IconButton,
+  InputAdornment,
   List,
   ListItemAvatar,
   ListItemButton,
@@ -17,12 +18,16 @@ import {
   Typography,
 } from "@mui/material";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import PersonSearchOutlinedIcon from "@mui/icons-material/PersonSearchOutlined";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useNavigate } from "react-router-dom";
-import { clearAuthSession } from "../auth/storage";
 import { chatsApi, messagesApi, usersApi, type Chat, type Message, type UserProfile } from "../api";
+import { clearAuthSession } from "../auth/storage";
 import UserProfilePage from "./UserProfilePage";
 
 type ConversationItem = {
@@ -32,6 +37,8 @@ type ConversationItem = {
   lastMessage: string;
   avatarUrl?: string;
 };
+
+type SearchMode = "people" | "chats" | null;
 
 const CHAT_REFRESH_MS = 5000;
 const MESSAGE_REFRESH_MS = 3000;
@@ -60,6 +67,12 @@ export default function ChatListPage() {
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [searchMode, setSearchMode] = useState<SearchMode>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [peopleResults, setPeopleResults] = useState<UserProfile[]>([]);
+  const [peopleSearchLoading, setPeopleSearchLoading] = useState(false);
+  const [peopleSearchError, setPeopleSearchError] = useState<string | null>(null);
+  const [startingChatUserId, setStartingChatUserId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
@@ -198,6 +211,134 @@ export default function ChatListPage() {
     }
   };
 
+  const searchPeople = useCallback(
+    async (query: string) => {
+      const normalizedQuery = query.trim();
+
+      if (!normalizedQuery) {
+        setPeopleResults([]);
+        setPeopleSearchError(null);
+        return;
+      }
+
+      try {
+        setPeopleSearchLoading(true);
+        setPeopleSearchError(null);
+        const foundUsers = await usersApi.search(normalizedQuery, 20);
+        setPeopleResults(
+          currentUser ? foundUsers.filter((user) => user.id !== currentUser.id) : foundUsers
+        );
+      } catch (searchError) {
+        setPeopleSearchError(
+          searchError instanceof Error ? searchError.message : "Не удалось выполнить поиск людей."
+        );
+      } finally {
+        setPeopleSearchLoading(false);
+      }
+    },
+    [currentUser]
+  );
+
+  useEffect(() => {
+    if (searchMode !== "people") {
+      setPeopleResults([]);
+      setPeopleSearchLoading(false);
+      setPeopleSearchError(null);
+      return;
+    }
+
+    const normalizedQuery = searchQuery.trim();
+    if (!normalizedQuery) {
+      setPeopleResults([]);
+      setPeopleSearchLoading(false);
+      setPeopleSearchError(null);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void searchPeople(normalizedQuery);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchMode, searchPeople, searchQuery]);
+
+  const handleStartPrivateChat = useCallback(
+    async (user: UserProfile) => {
+      if (startingChatUserId === user.id) {
+        return;
+      }
+
+      try {
+        setStartingChatUserId(user.id);
+        setPeopleSearchError(null);
+        const chat = await chatsApi.create({
+          type: "PRIVATE",
+          peerUserId: user.id,
+        });
+
+        await loadChats(true);
+        const nextChatId = getChatId(chat);
+
+        if (isValidChatId(nextChatId)) {
+          setSelectedChatId(nextChatId);
+          resetSearch();
+        }
+      } catch (createError) {
+        setPeopleSearchError(
+          createError instanceof Error ? createError.message : "Не удалось открыть чат с пользователем."
+        );
+      } finally {
+        setStartingChatUserId(null);
+      }
+    },
+    [loadChats, startingChatUserId]
+  );
+
+  const filteredChats = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return conversations;
+    }
+
+    return conversations.filter((conversation) => {
+      const haystack = `${conversation.name} ${conversation.lastMessage}`.toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [conversations, searchQuery]);
+
+  const displayedConversations = useMemo(() => {
+    if (searchMode === "chats") {
+      return filteredChats;
+    }
+
+    return conversations;
+  }, [conversations, filteredChats, searchMode]);
+
+  const resetSearch = useCallback(() => {
+    setSearchMode(null);
+    setSearchQuery("");
+    setPeopleResults([]);
+    setPeopleSearchError(null);
+    setPeopleSearchLoading(false);
+  }, []);
+
+  const activateSearch = (mode: Exclude<SearchMode, null>) => {
+    setSearchMode((prev) => (prev === mode ? null : mode));
+    setSearchQuery("");
+    setPeopleResults([]);
+    setPeopleSearchError(null);
+  };
+
+  const searchPlaceholder =
+    searchMode === "people"
+      ? "Поиск людей"
+      : searchMode === "chats"
+        ? "Поиск чатов"
+        : "Поиск";
+
   return (
     <Box
       sx={{
@@ -283,66 +424,203 @@ export default function ChatListPage() {
           </Stack>
         </Box>
 
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            borderBottom: `1px solid ${palette.panelBorder}`,
+          }}
+        >
+          <Stack direction="row" spacing={1.25}>
+            <Button
+              fullWidth
+              variant={searchMode === "people" ? "contained" : "outlined"}
+              startIcon={<PersonSearchOutlinedIcon />}
+              onClick={() => activateSearch("people")}
+              sx={{
+                borderColor: "rgba(59,130,246,0.28)",
+                color: searchMode === "people" ? "#fff" : "#bfdbfe",
+                borderRadius: 3,
+                py: 1,
+                bgcolor: searchMode === "people" ? "#2563eb" : "transparent",
+                boxShadow: "none",
+                "&:hover": {
+                  borderColor: "rgba(59,130,246,0.55)",
+                  bgcolor: searchMode === "people" ? "#1d4ed8" : "rgba(59,130,246,0.08)",
+                  boxShadow: "none",
+                },
+              }}
+            >
+              Люди
+            </Button>
+            <Button
+              fullWidth
+              variant={searchMode === "chats" ? "contained" : "outlined"}
+              startIcon={<ForumOutlinedIcon />}
+              onClick={() => activateSearch("chats")}
+              sx={{
+                borderColor: "rgba(255,255,255,0.14)",
+                color: "#e2e8f0",
+                borderRadius: 3,
+                py: 1,
+                bgcolor: searchMode === "chats" ? "rgba(255,255,255,0.14)" : "transparent",
+                boxShadow: "none",
+                "&:hover": {
+                  borderColor: "rgba(255,255,255,0.3)",
+                  bgcolor: searchMode === "chats" ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.04)",
+                  boxShadow: "none",
+                },
+              }}
+            >
+              Чаты
+            </Button>
+          </Stack>
+
+          {searchMode ? (
+            <TextField
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={searchPlaceholder}
+              fullWidth
+              autoFocus
+              sx={{ mt: 1.25 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon sx={{ color: "#94a3b8" }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={resetSearch} sx={{ color: "#94a3b8" }}>
+                      <CloseRoundedIcon fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+                sx: {
+                  color: "#e2e8f0",
+                  bgcolor: "rgba(255,255,255,0.05)",
+                  borderRadius: 3,
+                },
+              }}
+            />
+          ) : null}
+        </Box>
+
         <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
           {loadingChats ? (
             <Typography sx={{ color: palette.muted, p: 2 }}>Загрузка чатов...</Typography>
           ) : chatListError ? (
             <Typography sx={{ color: "#fca5a5", p: 2 }}>{chatListError}</Typography>
-          ) : (
-            <List sx={{ bgcolor: "transparent" }}>
-              {conversations.map((chat) => (
-                <ListItemButton
-                  key={`${chat.chatId}-${chat.userId ?? chat.name}`}
-                  onClick={() => setSelectedChatId(chat.chatId)}
-                  selected={chat.chatId === selectedChatId}
-                  sx={{
-                    borderRadius: 2,
-                    mb: 0.5,
-                    pr: 1,
-                    bgcolor:
-                      chat.chatId === selectedChatId ? "rgba(59,130,246,0.18)" : "transparent",
-                    "&.Mui-selected": {
-                      bgcolor: "rgba(59,130,246,0.18)",
-                    },
-                    "&.Mui-selected:hover": {
-                      bgcolor: "rgba(59,130,246,0.22)",
-                    },
-                    "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
-                  }}
-                >
-                  <ListItemAvatar>
-                    <Avatar src={chat.avatarUrl} sx={{ bgcolor: "#3f51b5", mr: 1 }}>
-                      {chat.name[0]}
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText
-                    primary={<Typography sx={{ color: "#fff", fontWeight: 500 }}>{chat.name}</Typography>}
-                    secondary={
-                      <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
-                        {chat.lastMessage}
-                      </Typography>
-                    }
-                  />
-                  {chat.userId && (
-                    <IconButton
-                      edge="end"
-                      aria-label={`Открыть профиль ${chat.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedUserId(chat.userId ?? null);
-                      }}
+          ) : searchMode === "people" ? (
+            peopleSearchLoading ? (
+              <Typography sx={{ color: palette.muted, p: 2 }}>Ищем людей...</Typography>
+            ) : peopleSearchError ? (
+              <Typography sx={{ color: "#fca5a5", p: 2 }}>{peopleSearchError}</Typography>
+            ) : peopleResults.length > 0 ? (
+              <List sx={{ bgcolor: "transparent" }}>
+                {peopleResults.map((user) => {
+                  const fullName =
+                    [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username;
+
+                  return (
+                    <ListItemButton
+                      key={`user-${user.id}`}
+                      onClick={() => void handleStartPrivateChat(user)}
+                      disabled={startingChatUserId === user.id}
                       sx={{
-                        color: "#93c5fd",
-                        ml: 1,
-                        "&:hover": { bgcolor: "rgba(59,130,246,0.12)" },
+                        borderRadius: 2,
+                        mb: 0.5,
+                        "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
                       }}
                     >
-                      <VisibilityOutlinedIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </ListItemButton>
-              ))}
-            </List>
+                      <ListItemAvatar>
+                        <Avatar src={user.avatarUrl} sx={{ bgcolor: "#3f51b5", mr: 1 }}>
+                          {fullName[0]?.toUpperCase() ?? "U"}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={<Typography sx={{ color: "#fff", fontWeight: 500 }}>{fullName}</Typography>}
+                        secondary={
+                          <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                            @{user.username}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </List>
+            ) : searchQuery.trim() ? (
+              <Typography sx={{ color: palette.muted, p: 2 }}>Ничего не найдено</Typography>
+            ) : (
+              <Typography sx={{ color: palette.muted, p: 2 }}>
+                Начните вводить имя, username или телефон
+              </Typography>
+            )
+          ) : (
+            <>
+              <List sx={{ bgcolor: "transparent" }}>
+                {displayedConversations.map((chat) => (
+                  <ListItemButton
+                    key={`${chat.chatId}-${chat.userId ?? chat.name}`}
+                    onClick={() => setSelectedChatId(chat.chatId)}
+                    selected={chat.chatId === selectedChatId}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 0.5,
+                      pr: 1,
+                      bgcolor:
+                        chat.chatId === selectedChatId ? "rgba(59,130,246,0.18)" : "transparent",
+                      "&.Mui-selected": {
+                        bgcolor: "rgba(59,130,246,0.18)",
+                      },
+                      "&.Mui-selected:hover": {
+                        bgcolor: "rgba(59,130,246,0.22)",
+                      },
+                      "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <Avatar src={chat.avatarUrl} sx={{ bgcolor: "#3f51b5", mr: 1 }}>
+                        {chat.name[0]}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={<Typography sx={{ color: "#fff", fontWeight: 500 }}>{chat.name}</Typography>}
+                      secondary={
+                        <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                          {chat.lastMessage}
+                        </Typography>
+                      }
+                    />
+                    {chat.userId ? (
+                      <IconButton
+                        edge="end"
+                        aria-label={`Открыть профиль ${chat.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedUserId(chat.userId ?? null);
+                        }}
+                        sx={{
+                          color: "#93c5fd",
+                          ml: 1,
+                          "&:hover": { bgcolor: "rgba(59,130,246,0.12)" },
+                        }}
+                      >
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    ) : null}
+                  </ListItemButton>
+                ))}
+              </List>
+
+              {searchMode === "chats" && displayedConversations.length === 0 ? (
+                <Typography sx={{ color: palette.muted, p: 2 }}>
+                  {searchQuery.trim() ? "Чаты не найдены" : "Начните вводить название чата"}
+                </Typography>
+              ) : null}
+            </>
           )}
         </Box>
       </Box>
@@ -556,13 +834,13 @@ export default function ChatListPage() {
         }}
       >
         <DialogContent sx={{ p: 0 }}>
-          {selectedUserId !== null && (
+          {selectedUserId !== null ? (
             <UserProfilePage
               onClose={() => setSelectedUserId(null)}
               userId={selectedUserId}
               readOnly
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </Box>
