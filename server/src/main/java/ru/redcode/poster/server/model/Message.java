@@ -53,6 +53,9 @@ public class Message {
     @LastModifiedDate
     private LocalDateTime updatedAt;
 
+    @Column(name = "is_pinned", nullable = false)
+    private boolean pinned = false;
+
     // Связь с прочтениями
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MessageReadReceipt> readReceipts = new ArrayList<>();

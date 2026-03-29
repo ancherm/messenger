@@ -42,5 +42,8 @@ public class ChatParticipant {
 
     @Column(name = "is_admin", nullable = false)
     private boolean admin = false;
+
+    @Column(name = "is_pinned", nullable = false)
+    private boolean pinned = false;
 }
 
