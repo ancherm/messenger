@@ -232,6 +232,17 @@ public class ChatService {
                 result.add(toParticipantResponse(active.get()));
                 continue;
             }
+            Optional<ChatParticipant> inactive = chatParticipantRepository.findByChatIdAndUserId(chatId, uid);
+            if (inactive.isPresent()) {
+                ChatParticipant cp = inactive.get();
+                cp.setLeftAt(null);
+                cp.setJoinedAt(LocalDateTime.now());
+                cp.setRole(ParticipantRole.MEMBER);
+                cp.setAdmin(false);
+                chatParticipantRepository.save(cp);
+                result.add(toParticipantResponse(cp));
+                continue;
+            }
             User u = userRepository.findById(uid)
                     .orElseThrow(() -> new BadRequestException("User not found: " + uid));
             ChatParticipant cp = addParticipant(chat, u, ParticipantRole.MEMBER);

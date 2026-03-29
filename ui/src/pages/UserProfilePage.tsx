@@ -19,6 +19,7 @@ import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LinkIcon from "@mui/icons-material/Link";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { usersApi, type UpdateUserRequest, type UserProfile } from "../api";
 import { subscribeUserStatusChanged } from "../presence/presenceEvents";
 
@@ -315,29 +316,30 @@ export default function UserProfilePage({
           />
 
           <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
-            {onAction ? (
-              <Button
-                variant="contained"
-                onClick={() => void onAction(user)}
-                disabled={actionLoading}
-                sx={{
-                  px: 4,
-                  py: 1.25,
-                  bgcolor: "linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)",
-                  color: "#fff",
-                  fontWeight: 700,
-                  borderRadius: "999px",
-                  boxShadow: "0 18px 32px rgba(59,130,246,0.18)",
-                  textTransform: "none",
-                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                  "&:hover": {
-                    transform: "translateY(-1px)",
-                    boxShadow: "0 22px 38px rgba(59,130,246,0.25)",
-                  },
-                }}
-              >
-                {actionLoading ? "Загрузка..." : actionLabel ?? "Написать"}
-              </Button>
+            {isReadOnly ? (
+              <>
+                {onAction ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<SendRoundedIcon />}
+                    onClick={() => void onAction(user)}
+                    disabled={actionLoading}
+                    sx={{
+                      bgcolor: "#0ea5e9",
+                      color: "#fff",
+                      px: 3,
+                      py: 1.25,
+                      borderRadius: 999,
+                      textTransform: "none",
+                      boxShadow: "0 12px 30px rgba(14,165,233,0.22)",
+                      transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                      "&:hover": { bgcolor: "#0284c7", transform: "translateY(-1px)" },
+                    }}
+                  >
+                    {actionLoading ? "Opening..." : actionLabel ?? "Write"}
+                  </Button>
+                ) : null}
+              </>
             ) : editing ? (
               <>
                 <Button

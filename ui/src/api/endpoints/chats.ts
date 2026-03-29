@@ -1,5 +1,5 @@
-import { apiClient } from "../client";
-import type { Chat, ChatDetailsResponse, CreateChatRequest, UpdateChatRequest } from "../types";
+import { apiClient, type RequestOptions } from "../client";
+import type { Chat, ChatDetailsResponse, ChatParticipant, CreateChatRequest, UpdateChatRequest } from "../types";
 
 export const chatsApi = {
   getAll(): Promise<Chat[]> {
@@ -10,8 +10,8 @@ export const chatsApi = {
     return apiClient.get(`/chats/${id}`);
   },
 
-  getDetails(id: number): Promise<ChatDetailsResponse> {
-    return apiClient.get(`/chats/${id}`);
+  getDetails(id: number, options?: RequestOptions): Promise<ChatDetailsResponse> {
+    return apiClient.get(`/chats/${id}`, options);
   },
 
   create(data: CreateChatRequest): Promise<Chat> {
@@ -28,6 +28,10 @@ export const chatsApi = {
 
   removeParticipant(chatId: number, userId: number): Promise<void> {
     return apiClient.delete(`/chats/${chatId}/participants/${userId}`);
+  },
+
+  addParticipants(chatId: number, userIds: number[]): Promise<ChatParticipant[]> {
+    return apiClient.post(`/chats/${chatId}/participants`, { userIds });
   },
 
   search(query: string): Promise<Chat[]> {
