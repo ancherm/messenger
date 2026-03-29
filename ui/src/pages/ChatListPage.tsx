@@ -1637,7 +1637,7 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
       chatType: source.type,
       name: source.title || buildGroupTitle(me, []),
       description: source.description,
-      lastMessage: source.lastMessage?.content || "Нет сообщений",
+      lastMessage: await resolveConversationLastMessage(source),
       avatarUrl: source.avatarUrl,
     };
   }
