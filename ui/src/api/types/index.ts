@@ -9,7 +9,7 @@ export type UserStatus = "ONLINE" | "OFFLINE" | "AWAY";
 export interface UserProfile {
   id: number;
   username: string;
-  email: string;
+  email?: string | null;
   firstName?: string;
   lastName?: string;
   phone?: string;
@@ -17,8 +17,10 @@ export interface UserProfile {
   bio?: string;
   status?: UserStatus | string;
   lastSeenAt?: string;
+  status?: string;
+  active?: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface LoginRequest {
@@ -49,6 +51,22 @@ export interface UpdateUserRequest {
   avatarUrl?: string;
   status?: UserStatus | string;
 }
+
+export interface LoginRequest {
+  emailOrUsername: string;
+  password: string;
+}
+
+export interface AuthTokens {
+  token: string;
+  refreshToken?: string;
+}
+
+export interface AuthResponse extends AuthTokens {
+  user?: UserProfile;
+}
+
+// ─── Message Types ────────────────────────────────────────────
 
 export interface Message {
   id: number;

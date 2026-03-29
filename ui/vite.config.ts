@@ -6,13 +6,18 @@ export default defineConfig({
   plugins: [react(), babel({ presets: [reactCompilerPreset()] })],
   server: {
     proxy: {
+      "/auth": {
+        target: "http://localhost:8888",
+        changeOrigin: true,
+      },
       "/api": {
         target: "http://localhost:8888",
         changeOrigin: true,
       },
-      "/auth": {
+      "/ws": {
         target: "http://localhost:8888",
         changeOrigin: true,
+        ws: true,
       },
     },
   },

@@ -40,7 +40,18 @@ type ConversationItem = {
 const CHAT_REFRESH_MS = 5000;
 const MESSAGE_REFRESH_MS = 3000;
 
+const palette = {
+  shell: "#0b1222",
+  panel: "rgba(11, 27, 56, 0.9)",
+  panelBorder: "rgba(255,255,255,0.08)",
+  accent: "#3b82f6",
+  accentSoft: "rgba(59,130,246,0.12)",
+  muted: "#64748b",
+  text: "#fff",
+};
+
 export default function ChatListPage() {
+  const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -324,8 +335,8 @@ export default function ChatListPage() {
           maxWidth: 520,
           minWidth: 360,
           height: "100vh",
-          bgcolor: "rgba(11, 27, 56, 0.85)",
-          borderRight: "1px solid rgba(255,255,255,0.08)",
+          bgcolor: palette.panel,
+          borderRight: `1px solid ${palette.panelBorder}`,
           display: "flex",
           flexDirection: "column",
           boxShadow: "4px 0 20px rgba(0,0,0,0.35)",
@@ -335,27 +346,57 @@ export default function ChatListPage() {
           sx={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "flex-start",
+            justifyContent: "space-between",
             px: 2,
             py: 1.5,
-            borderBottom: "1px solid rgba(255,255,255,0.1)",
+            borderBottom: `1px solid ${palette.panelBorder}`,
             gap: 2,
             flexShrink: 0,
           }}
         >
-          <IconButton
-            color="inherit"
-            onClick={() => setProfileOpen(true)}
-            sx={{
-              color: "#3b82f6",
-              "&:hover": { bgcolor: "rgba(59,130,246,0.1)" },
-            }}
-          >
-            <AccountCircleIcon />
-          </IconButton>
-          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: "1rem", color: "#fff" }}>
-            Чаты
-          </Typography>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Avatar
+              src={currentUser?.avatarUrl}
+              sx={{ width: 42, height: 42, bgcolor: palette.accentSoft, color: "#bfdbfe" }}
+            >
+              {currentUser?.username?.[0]?.toUpperCase() ?? "U"}
+            </Avatar>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, fontSize: "1rem", color: "#fff" }}>
+                Чаты
+              </Typography>
+              <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                {currentUser ? `@${currentUser.username}` : "Загрузка профиля"}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Stack direction="row" spacing={1}>
+            <Tooltip title="Профиль">
+              <IconButton
+                color="inherit"
+                onClick={() => setProfileOpen(true)}
+                sx={{
+                  color: palette.accent,
+                  "&:hover": { bgcolor: palette.accentSoft },
+                }}
+              >
+                <AccountCircleIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Выйти">
+              <IconButton
+                color="inherit"
+                onClick={handleLogout}
+                sx={{
+                  color: "#fda4af",
+                  "&:hover": { bgcolor: "rgba(244,63,94,0.1)" },
+                }}
+              >
+                <LogoutRoundedIcon />
+              </IconButton>
+            </Tooltip>
+          </Stack>
         </Box>
 
         <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>

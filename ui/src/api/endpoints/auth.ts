@@ -1,44 +1,47 @@
-import { resolveApiUrl } from "../client";
-import type { LoginRequest, LoginResponse, RegisterRequest, UserProfile } from "../types";
+import { apiClient } from "../client";
+import type { AuthResponse, CreateUserRequest, LoginRequest } from "../types";
 
-const AUTH_BASE_URL = import.meta.env.VITE_AUTH_URL || "/auth";
+type AuthResponseShape = Partial<AuthResponse> & {
+  accessToken?: string;
+  access_token?: string;
+  refreshToken?: string;
+  refresh_token?: string;
+  data?: AuthResponseShape;
+};
 
-async function authRequest<T>(
-  endpoint: string,
-  method: "POST",
-  body: unknown
-): Promise<T> {
-  const response = await fetch(resolveApiUrl(AUTH_BASE_URL, endpoint), {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+function normalizeAuthResponse(payload: AuthResponseShape): AuthResponse {
+  const source = payload.data ?? payload;
+  const token = source.token ?? source.accessToken ?? source.access_token;
+  const refreshToken = source.refreshToken ?? source.refresh_token;
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  if (!token) {
+    throw new Error("Token was not returned by the server");
   }
 
-  return response.json() as Promise<T>;
+  return {
+    token,
+    refreshToken,
+    user: source.user,
+  };
 }
 
 export const authApi = {
-  async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await authRequest<LoginResponse>("/login", "POST", data);
+  async login(data: LoginRequest): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponseShape>("/auth/login", {
+      username: data.emailOrUsername.trim(),
+      password: data.password,
+    });
 
-    if (response.token) {
-      localStorage.setItem("authToken", response.token);
-    }
-
-    return response;
+    return normalizeAuthResponse(response);
   },
 
-  register(data: RegisterRequest): Promise<UserProfile> {
-    return authRequest<UserProfile>("/register", "POST", data);
-  },
-
-  logout(): void {
-    localStorage.removeItem("authToken");
+  async register(data: CreateUserRequest): Promise<void> {
+    await apiClient.post<void>("/auth/register", {
+      username: data.username.trim(),
+      email: data.email.trim(),
+      firstName: data.firstName?.trim() || undefined,
+      lastName: data.lastName?.trim() || undefined,
+      password: data.password,
+    });
   },
 };

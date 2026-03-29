@@ -4,8 +4,12 @@
 
 import type { RequestOptions } from "../client";
 import type {
-  Chat,
-  CreateChatRequest,
+  UserProfile,
+  CreateUserRequest,
+  LoginRequest,
+  UpdateUserRequest,
+  CreateMessageRequest,
+  Message,
   GetMessagesQuery,
   LoginRequest,
   LoginResponse,
@@ -36,15 +40,18 @@ export class MockApiClient implements IApiClient {
   async get<T>(endpoint: string, opts?: RequestOptions): Promise<T> {
     await delay();
 
-    if (endpoint === "/users/me") {
-      return currentUser() as T;
+    if (endpoint === "/users/me" || endpoint === "/api/users/me") {
+      const token = localStorage.getItem("authToken");
+      const activeUserId = Number(token?.replace("mock-token-", ""));
+      const activeUser = mockUsers.find((user) => user.id === activeUserId) ?? mockUsers[0];
+      return (activeUser as unknown) as T;
     }
 
-    if (endpoint.startsWith("/users/")) {
-      const id = Number(endpoint.replace("/users/", ""));
-      const user = mockUsers.find((item) => item.id === id);
-      if (!user) throw new Error("User not found");
-      return user as T;
+    if (endpoint.startsWith("/users/") || endpoint.startsWith("/api/users/")) {
+      const id = Number(endpoint.replace("/api/users/", "").replace("/users/", ""));
+      const user = mockUsers.find((u) => u.id === id);
+      if (user) return (user as unknown) as T;
+      throw new Error("User not found");
     }
 
     if (endpoint === "/chats") {
@@ -104,49 +111,28 @@ export class MockApiClient implements IApiClient {
     await delay();
 
     if (endpoint === "/auth/login") {
-      const payload = body as LoginRequest;
-      const user = mockUsers.find((item) => item.username === payload.username);
-      if (!user) throw new Error("Invalid credentials");
-      return ({ token: "mock-token" } satisfies LoginResponse) as T;
+      const payload = body as LoginRequest & { username?: string };
+      const identifier = (payload.emailOrUsername ?? payload.username ?? "").trim().toLowerCase();
+      const user = mockUsers.find(
+        (item) =>
+          item.username.toLowerCase() === identifier ||
+          (item.email?.toLowerCase() ?? "") === identifier
+      );
+
+      if (!user || payload.password.length < 4) {
+        throw new Error("Invalid credentials");
+      }
+
+      return ({
+        token: `mock-token-${user.id}`,
+        refreshToken: `mock-refresh-${user.id}`,
+        user,
+      } as unknown) as T;
     }
 
-    if (endpoint === "/auth/register") {
-      const payload = body as RegisterRequest;
-      const user: UserProfile = {
-        id: mockUsers.length + 1,
-        username: payload.username,
-        email: payload.email,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      mockUsers.push(user);
-      return user as T;
-    }
-
-    if (endpoint === "/chats") {
-      const payload = body as CreateChatRequest;
-      const chat: Chat = {
-        id: mockChats.length + 1,
-        type: payload.type,
-        title: payload.title,
-        description: payload.description,
-        peerUserId: payload.peerUserId,
-        participantIds:
-          payload.type === "PRIVATE"
-            ? [currentUser().id, payload.peerUserId ?? currentUser().id]
-            : [currentUser().id, ...(payload.participantIds ?? [])],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      mockChats.push(chat);
-      return chat as T;
-    }
-
-    if (endpoint.startsWith("/chats/") && endpoint.endsWith("/messages")) {
-      const [, , chatIdSegment] = endpoint.split("/");
-      const chatId = Number(chatIdSegment);
-      const payload = body as SendMessageRequest;
-      const message: Message = {
+    if (endpoint === "/messages") {
+      const payload = body as CreateMessageRequest;
+      const newMessage: Message = {
         id: mockMessages.length + 1,
         chatId,
         senderId: currentUser().id,
@@ -170,18 +156,14 @@ export class MockApiClient implements IApiClient {
       return message as T;
     }
 
-    if (endpoint === "/users") {
-      const payload = body as Partial<UserProfile>;
-      const user: UserProfile = {
+    if (endpoint === "/users" || endpoint === "/auth/register") {
+      const payload = body as CreateUserRequest;
+      const newUser: UserProfile = {
         id: mockUsers.length + 1,
         username: payload.username || `user${mockUsers.length + 1}`,
         email: payload.email || `user${mockUsers.length + 1}@example.com`,
         firstName: payload.firstName,
         lastName: payload.lastName,
-        phone: payload.phone,
-        avatarUrl: payload.avatarUrl,
-        bio: payload.bio,
-        status: payload.status,
         lastSeenAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -193,14 +175,26 @@ export class MockApiClient implements IApiClient {
     throw new Error(`Mock POST endpoint not implemented: ${endpoint}`);
   }
 
-  async put<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T> {
-    return this.patch(endpoint, body, opts);
+  async put<T>(endpoint: string, body?: unknown): Promise<T> {
+    return this.patch(endpoint, body);
   }
 
-  async patch<T>(endpoint: string, body?: unknown, _opts?: RequestOptions): Promise<T> {
+  async patch<T>(endpoint: string, body?: unknown): Promise<T> {
     await delay();
 
-    if (endpoint === "/users/me") {
+    if (
+      endpoint.startsWith("/users/") ||
+      endpoint.startsWith("/api/users/") ||
+      endpoint === "/api/users/me"
+    ) {
+      const token = localStorage.getItem("authToken");
+      const activeUserId = Number(token?.replace("mock-token-", ""));
+      const id =
+        endpoint === "/api/users/me"
+          ? activeUserId
+          : Number(endpoint.replace("/api/users/", "").replace("/users/", ""));
+      const userIndex = mockUsers.findIndex((u) => u.id === id);
+      if (userIndex < 0) throw new Error("User not found");
       const patch = body as UpdateUserRequest;
       const updated = { ...currentUser(), ...patch, updatedAt: new Date().toISOString() };
       mockUsers[0] = updated;

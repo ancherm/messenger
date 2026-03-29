@@ -3,14 +3,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Alert,
   Avatar,
-  Typography,
   Box,
-  Divider,
-  Chip,
-  IconButton,
   Button,
+  CircularProgress,
+  Divider,
+  IconButton,
   TextField,
+  Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonIcon from "@mui/icons-material/Person";
@@ -97,8 +98,8 @@ export default function UserProfilePage({
     return Date.now() - new Date(user.lastSeenAt).getTime() < ONLINE_THRESHOLD_MS;
   }, [user?.lastSeenAt]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -146,7 +147,17 @@ export default function UserProfilePage({
   };
 
   const handleCancel = () => {
-    setForm(user ?? {});
+    if (!user) {
+      return;
+    }
+
+    setForm({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      bio: user.bio,
+      avatarUrl: user.avatarUrl,
+    });
     setEditing(false);
     setError(null);
   };
@@ -356,6 +367,12 @@ export default function UserProfilePage({
           )}
         </Box>
 
+        {error && (
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Alert severity="error">{error}</Alert>
+          </Box>
+        )}
+
         <Divider sx={{ borderColor: "rgba(255,255,255,0.15)", mb: 1 }} />
 
         <Box sx={{ px: 2, py: 1 }}>
@@ -380,21 +397,23 @@ export default function UserProfilePage({
                 InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
               />
               <TextField
-                label="Email"
-                name="email"
-                value={form.email ?? ""}
-                onChange={handleChange}
-                size="small"
-                fullWidth
-                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
-              />
-              <TextField
                 label="Phone"
                 name="phone"
                 value={form.phone ?? ""}
                 onChange={handleChange}
                 size="small"
                 fullWidth
+                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+              />
+              <TextField
+                label="Bio"
+                name="bio"
+                value={form.bio ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                multiline
+                minRows={3}
                 InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
               />
               <TextField
@@ -421,6 +440,7 @@ export default function UserProfilePage({
                   py: 1,
                   px: 1.5,
                   borderBottom: "1px solid rgba(255,255,255,0.07)",
+                  gap: 2,
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
