@@ -110,6 +110,16 @@ export default function ChatListPage() {
   const [groupProfileError, setGroupProfileError] = useState<string | null>(null);
   const [groupProfile, setGroupProfile] = useState<ChatDetailsResponse | null>(null);
   const [removingParticipantId, setRemovingParticipantId] = useState<number | null>(null);
+  const [groupAddQuery, setGroupAddQuery] = useState("");
+  const [groupAddResults, setGroupAddResults] = useState<UserProfile[]>([]);
+  const [groupAddLoading, setGroupAddLoading] = useState(false);
+  const [groupAddError, setGroupAddError] = useState<string | null>(null);
+  const [groupAddingUserId, setGroupAddingUserId] = useState<number | null>(null);
+
+  const normalizeChatDetails = useCallback((details: ChatDetailsResponse): ChatDetailsResponse => ({
+    ...details,
+    participants: details.participants.filter((participant) => !participant.leftAt),
+  }), []);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
@@ -295,30 +305,12 @@ export default function ChatListPage() {
     try {
       setGroupProfileLoading(true);
       setGroupProfileError(null);
-      const details = await chatsApi.getDetails(chatId);
-      const participants = await Promise.all(
-        details.participants.map(async (participant) => {
-          if (participant.user?.avatarUrl) {
-            return participant;
-          }
-
-          try {
-            const profile = await usersApi.getById(participant.userId);
-            return {
-              ...participant,
-              username: participant.username ?? profile.username,
-              user: profile,
-            };
-          } catch {
-            return participant;
-          }
-        })
-      );
-
-      setGroupProfile({
-        ...details,
-        participants,
+      setGroupProfile(null);
+      const details = await chatsApi.getDetails(chatId, {
+        cache: "no-store",
+        params: { t: String(Date.now()) },
       });
+      setGroupProfile(normalizeChatDetails(details));
       setGroupProfileOpen(true);
     } catch (loadError) {
       setGroupProfileError(
@@ -349,13 +341,37 @@ export default function ChatListPage() {
               }
             : prev
         );
+        await loadGroupProfile(groupProfile.chat.id);
       } catch (error) {
         setGroupProfileError(error instanceof Error ? error.message : "Не удалось удалить участника");
       } finally {
         setRemovingParticipantId(null);
       }
     },
-    [groupProfile]
+    [groupProfile, loadGroupProfile]
+  );
+
+  const addGroupParticipant = useCallback(
+    async (userId: number) => {
+      if (!groupProfile) {
+        return;
+      }
+
+      setGroupAddingUserId(userId);
+      setGroupAddError(null);
+
+      try {
+        await chatsApi.addParticipants(groupProfile.chat.id, [userId]);
+        setGroupAddQuery("");
+        setGroupAddResults([]);
+        await loadGroupProfile(groupProfile.chat.id);
+      } catch (error) {
+        setGroupAddError(error instanceof Error ? error.message : "Не удалось добавить участника");
+      } finally {
+        setGroupAddingUserId(null);
+      }
+    },
+    [groupProfile, loadGroupProfile]
   );
 
   const handleDeleteChat = useCallback(
@@ -586,6 +602,50 @@ export default function ChatListPage() {
     [currentUser, selectedParticipants]
   );
 
+  const searchGroupParticipants = useCallback(
+    async (query: string) => {
+      const normalizedQuery = query.trim().toLowerCase();
+
+      if (!normalizedQuery || normalizedQuery.length < PARTICIPANT_SEARCH_MIN_LENGTH) {
+        setGroupAddResults([]);
+        setGroupAddError(null);
+        return;
+      }
+
+      if (!groupProfile) {
+        setGroupAddResults([]);
+        setGroupAddError(null);
+        return;
+      }
+
+      try {
+        setGroupAddLoading(true);
+        setGroupAddError(null);
+        const foundUsers = await usersApi.search(normalizedQuery, 20);
+        const existingIds = new Set(groupProfile.participants.map((participant) => participant.userId));
+
+        setGroupAddResults(
+          foundUsers.filter((user) => {
+            if (currentUser && user.id === currentUser.id) {
+              return false;
+            }
+            if (existingIds.has(user.id)) {
+              return false;
+            }
+            return matchesUserQuery(user, normalizedQuery);
+          })
+        );
+      } catch (searchError) {
+        setGroupAddError(
+          searchError instanceof Error ? searchError.message : "Не удалось найти участников"
+        );
+      } finally {
+        setGroupAddLoading(false);
+      }
+    },
+    [currentUser, groupProfile]
+  );
+
   useEffect(() => {
     if (!createChatMode) {
       setParticipantResults([]);
@@ -610,6 +670,31 @@ export default function ChatListPage() {
       window.clearTimeout(timeoutId);
     };
   }, [createChatMode, participantQuery, searchParticipants]);
+
+  useEffect(() => {
+    if (!groupProfileOpen) {
+      setGroupAddResults([]);
+      setGroupAddLoading(false);
+      setGroupAddError(null);
+      return;
+    }
+
+    const normalizedQuery = groupAddQuery.trim();
+    if (!normalizedQuery || normalizedQuery.length < PARTICIPANT_SEARCH_MIN_LENGTH) {
+      setGroupAddResults([]);
+      setGroupAddLoading(false);
+      setGroupAddError(null);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void searchGroupParticipants(normalizedQuery);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [groupAddQuery, groupProfileOpen, searchGroupParticipants]);
 
   const filteredChats = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -1408,10 +1493,17 @@ export default function ChatListPage() {
                   ? `Если оставить пустым, будет: ${buildGroupTitle(currentUser, selectedParticipants)}`
                   : "Можно ввести свое название или собрать его автоматически из ников"
               }
-              InputProps={{
+              InputLabelProps={{
                 sx: {
                   color: "#e2e8f0",
-                  bgcolor: "rgba(255,255,255,0.05)",
+                  '&.Mui-focused': { color: "#fff" },
+                },
+              }}
+              FormHelperTextProps={{ sx: { color: "#cbd5e1" } }}
+              InputProps={{
+                sx: {
+                  color: "#fff",
+                  bgcolor: "rgba(255,255,255,0.08)",
                   borderRadius: 3,
                 },
               }}
@@ -1423,10 +1515,16 @@ export default function ChatListPage() {
               fullWidth
               multiline
               minRows={2}
-              InputProps={{
+              InputLabelProps={{
                 sx: {
                   color: "#e2e8f0",
-                  bgcolor: "rgba(255,255,255,0.05)",
+                  '&.Mui-focused': { color: "#fff" },
+                },
+              }}
+              InputProps={{
+                sx: {
+                  color: "#fff",
+                  bgcolor: "rgba(255,255,255,0.08)",
                   borderRadius: 3,
                 },
               }}
@@ -1436,6 +1534,12 @@ export default function ChatListPage() {
               value={participantQuery}
               onChange={(event) => setParticipantQuery(event.target.value)}
               fullWidth
+              InputLabelProps={{
+                sx: {
+                  color: "#e2e8f0",
+                  '&.Mui-focused': { color: "#fff" },
+                },
+              }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -1443,8 +1547,8 @@ export default function ChatListPage() {
                   </InputAdornment>
                 ),
                 sx: {
-                  color: "#e2e8f0",
-                  bgcolor: "rgba(255,255,255,0.05)",
+                  color: "#fff",
+                  bgcolor: "rgba(255,255,255,0.08)",
                   borderRadius: 3,
                 },
               }}
@@ -1578,39 +1682,136 @@ export default function ChatListPage() {
               </Box>
 
               <Box>
-                <Typography sx={{ color: "#fff", fontWeight: 600, mb: 1 }}>
+                <TextField
+                  label="Добавить участника"
+                  value={groupAddQuery}
+                  onChange={(event) => setGroupAddQuery(event.target.value)}
+                  fullWidth
+                  size="small"
+                  helperText={groupAddError ?? "Искать пользователя по нику или имени"}
+                  error={Boolean(groupAddError)}
+                  InputLabelProps={{
+                    sx: {
+                      color: "#e2e8f0",
+                      '&.Mui-focused': { color: "#fff" },
+                    },
+                  }}
+                  FormHelperTextProps={{ sx: { color: groupAddError ? "#fca5a5" : "#94a3b8" } }}
+                  InputProps={{
+                    sx: {
+                      color: "#fff",
+                      bgcolor: "rgba(255,255,255,0.08)",
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+                {groupAddLoading ? (
+                  <Typography sx={{ color: palette.muted, mt: 1 }}>Ищем пользователей...</Typography>
+                ) : groupAddResults.length > 0 ? (
+                  <List sx={{ maxHeight: 220, overflow: "auto", p: 0, mt: 1 }}>
+                    {groupAddResults.map((user) => (
+                      <ListItemButton
+                        key={`group-add-user-${user.id}`}
+                        onClick={() => void addGroupParticipant(user.id)}
+                        disabled={groupAddingUserId === user.id}
+                        sx={{
+                          borderRadius: 2,
+                          mb: 0.5,
+                          "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
+                        }}
+                      >
+                        <ListItemAvatar>
+                          <Avatar src={user.avatarUrl}>{user.username?.[0]?.toUpperCase() ?? "U"}</Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={<Typography sx={{ color: "#fff" }}>{user.username}</Typography>}
+                          secondary={
+                            <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                              {[user.firstName, user.lastName].filter(Boolean).join(" ") || "Пользователь"}
+                            </Typography>
+                          }
+                        />
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void addGroupParticipant(user.id);
+                          }}
+                          disabled={groupAddingUserId === user.id}
+                          sx={{
+                            bgcolor: "#0ea5e9",
+                            color: "#fff",
+                            px: 2,
+                            ml: 1,
+                            textTransform: "none",
+                          }}
+                        >
+                          {groupAddingUserId === user.id ? "Добавляем..." : "Добавить"}
+                        </Button>
+                      </ListItemButton>
+                    ))}
+                  </List>
+                ) : null}
+
+                <Typography sx={{ color: "#fff", fontWeight: 600, mb: 1, mt: 2 }}>
                   Участники ({groupProfile.participants.length})
                 </Typography>
                 <List sx={{ p: 0 }}>
-                  {groupProfile.participants.map((participant) => (
-                    <ListItemButton
-                      key={`group-member-${participant.userId}`}
-                      onClick={() => setSelectedUserId(participant.userId)}
-                      sx={{
-                        borderRadius: 2,
-                        mb: 0.5,
-                        "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
-                      }}
-                    >
-                      <ListItemAvatar>
-                        <Avatar src={participant.user?.avatarUrl}>
-                          {(participant.user?.username ?? participant.username)?.[0]?.toUpperCase() ?? "U"}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={
-                          <Typography sx={{ color: "#fff" }}>
-                            {participant.user?.username ?? participant.username}
-                          </Typography>
-                        }
-                        secondary={
-                          <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
-                            {participant.role || "MEMBER"}
-                          </Typography>
-                        }
-                      />
-                    </ListItemButton>
-                  ))}
+                  {groupProfile.participants.map((participant) => {
+                    const currentUserParticipant = currentUser
+                      ? groupProfile.participants.find((member) => member.userId === currentUser.id)
+                      : undefined;
+                    const canRemoveParticipants =
+                      currentUserParticipant?.role === "OWNER" || currentUserParticipant?.role === "ADMIN";
+                    const showRemoveButton =
+                      canRemoveParticipants &&
+                      participant.userId !== currentUser?.id &&
+                      participant.role !== "OWNER";
+
+                    return (
+                      <ListItemButton
+                        key={`group-member-${participant.userId}`}
+                        onClick={() => setSelectedUserId(participant.userId)}
+                        sx={{
+                          borderRadius: 2,
+                          mb: 0.5,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                          <ListItemAvatar>
+                            <Avatar>{participant.username?.[0]?.toUpperCase() ?? "U"}</Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={<Typography sx={{ color: "#fff" }}>{participant.username}</Typography>}
+                            secondary={
+                              <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                                {participant.role || "MEMBER"}
+                              </Typography>
+                            }
+                          />
+                        </Box>
+                        {showRemoveButton ? (
+                          <IconButton
+                            edge="end"
+                            size="small"
+                            color="inherit"
+                            disabled={removingParticipantId === participant.userId}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void removeGroupParticipant(participant.userId);
+                            }}
+                          >
+                            <DeleteOutlineRoundedIcon fontSize="small" />
+                          </IconButton>
+                        ) : null}
+                      </ListItemButton>
+                    );
+                  })}
                 </List>
               </Box>
             </Stack>
@@ -1635,13 +1836,19 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
 
   if (!chat.peerUserId && !chat.participantIds?.length && !chat.participants?.length) {
     try {
-      const fullChat = await chatsApi.getDetails(normalizedChatId);
-      source = {
+      const fullChat = await chatsApi.getDetails(normalizedChatId, {
+        cache: "no-store",
+        params: { t: String(Date.now()) },
+      });
+      const normalizedFullChat = {
         ...fullChat.chat,
-        participants: fullChat.participants,
-        participantIds: fullChat.participants.map((participant) => participant.userId),
+        participants: fullChat.participants.filter((participant) => !participant.leftAt),
+        participantIds: fullChat.participants
+          .filter((participant) => !participant.leftAt)
+          .map((participant) => participant.userId),
         id: getChatId(fullChat.chat) ?? normalizedChatId,
       };
+      source = normalizedFullChat;
     } catch {
       source = {
         ...chat,
@@ -1656,7 +1863,7 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
       chatType: source.type,
       name: source.title || buildGroupTitle(me, []),
       description: source.description,
-      lastMessage: await resolveConversationLastMessage(source),
+      lastMessage: source.lastMessage?.content || "Нет сообщений",
       avatarUrl: source.avatarUrl,
     };
   }
