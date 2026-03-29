@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+//import React, { useState } from "react";
 import { Box, Typography, List, ListItemButton, ListItemAvatar, Avatar, ListItemText, IconButton, Dialog, DialogContent } from "@mui/material";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import UserProfilePage from "./UserProfilePage";
+import {useState} from "react";
 
 const conversations = [
   { id: 2, name: "Alice", lastMessage: "Как дела?" },
@@ -26,7 +27,7 @@ export default function ChatListPage() {
           display: "flex",
           flexDirection: "column",
           boxShadow: "4px 0 20px rgba(0,0,0,0.35)",
-          minWidth: 0,
+          //minWidth: 0,
         }}
       >
         {/* Шапка */}
