@@ -20,9 +20,11 @@ import {
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import PersonSearchOutlinedIcon from "@mui/icons-material/PersonSearchOutlined";
+import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { useNavigate } from "react-router-dom";
@@ -68,6 +70,9 @@ export default function ChatListPage() {
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingMessageContent, setEditingMessageContent] = useState("");
+  const [messageActionId, setMessageActionId] = useState<number | null>(null);
   const [searchMode, setSearchMode] = useState<SearchMode>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [peopleResults, setPeopleResults] = useState<UserProfile[]>([]);
@@ -77,8 +82,16 @@ export default function ChatListPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
-    clearAuthSession();
-    navigate("/auth", { replace: true });
+    void (async () => {
+      try {
+        await usersApi.updateStatus("OFFLINE");
+      } catch {
+        // Ignore presence update errors on logout.
+      } finally {
+        clearAuthSession();
+        navigate("/auth", { replace: true });
+      }
+    })();
   }, [navigate]);
 
   const loadChats = useCallback(
@@ -154,9 +167,13 @@ export default function ChatListPage() {
     if (!isValidChatId(selectedChatId)) {
       setMessages([]);
       setMessagesError(null);
+      setEditingMessageId(null);
+      setEditingMessageContent("");
       return;
     }
 
+    setEditingMessageId(null);
+    setEditingMessageContent("");
     void loadMessages(selectedChatId);
   }, [loadMessages, selectedChatId]);
 
@@ -241,6 +258,98 @@ export default function ChatListPage() {
     },
     [deletingChatId, loadChats, selectedChatId]
   );
+  const updateConversationPreview = useCallback((chatId: number, nextMessages: Message[]) => {
+    const lastMessage = nextMessages[nextMessages.length - 1];
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.chatId === chatId
+          ? { ...conversation, lastMessage: lastMessage?.content ?? "Нет сообщений" }
+          : conversation
+      )
+    );
+  }, []);
+
+  const startEditingMessage = (message: Message) => {
+    setEditingMessageId(message.id);
+    setEditingMessageContent(message.content);
+    setMessagesError(null);
+  };
+
+  const cancelEditingMessage = () => {
+    setEditingMessageId(null);
+    setEditingMessageContent("");
+  };
+
+  const handleUpdateMessage = async (messageId: number) => {
+    const content = editingMessageContent.trim();
+    if (!content || messageActionId !== null) {
+      return;
+    }
+
+    try {
+      setMessageActionId(messageId);
+      setMessagesError(null);
+      const updatedMessage = await messagesApi.update(messageId, content);
+      const fallbackEditedAt = new Date().toISOString();
+
+      setMessages((prev) => {
+        const nextMessages = sortMessages(
+          prev.map((message) =>
+            message.id === messageId
+              ? {
+                  ...message,
+                  ...updatedMessage,
+                  content,
+                  editedAt: updatedMessage.editedAt ?? fallbackEditedAt,
+                }
+              : message
+          )
+        );
+
+        if (selectedChatId) {
+          updateConversationPreview(selectedChatId, nextMessages);
+        }
+
+        return nextMessages;
+      });
+
+      cancelEditingMessage();
+    } catch (updateError) {
+      setMessagesError(
+        updateError instanceof Error ? updateError.message : "Failed to update message"
+      );
+    } finally {
+      setMessageActionId(null);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: number) => {
+    if (!selectedChatId || messageActionId !== null) {
+      return;
+    }
+
+    try {
+      setMessageActionId(messageId);
+      setMessagesError(null);
+      await messagesApi.delete(messageId);
+
+      if (editingMessageId === messageId) {
+        cancelEditingMessage();
+      }
+
+      setMessages((prev) => {
+        const nextMessages = prev.filter((message) => message.id !== messageId);
+        updateConversationPreview(selectedChatId, nextMessages);
+        return nextMessages;
+      });
+    } catch (deleteError) {
+      setMessagesError(
+        deleteError instanceof Error ? deleteError.message : "Failed to delete message"
+      );
+    } finally {
+      setMessageActionId(null);
+    }
+  };
 
   const searchPeople = useCallback(
     async (query: string) => {
@@ -729,6 +838,8 @@ export default function ChatListPage() {
                 <>
                   {messages.map((message) => {
                     const isMine = message.senderId === currentUser?.id;
+                    const isEditing = editingMessageId === message.id;
+                    const isProcessing = messageActionId === message.id;
 
                     return (
                       <Box
@@ -743,21 +854,123 @@ export default function ChatListPage() {
                           border: isMine
                             ? "1px solid rgba(59,130,246,0.28)"
                             : "1px solid rgba(255,255,255,0.08)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 1,
                         }}
                       >
-                        <Typography sx={{ color: "#e2e8f0", whiteSpace: "pre-wrap" }}>
-                          {message.content}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            color: "#94a3b8",
-                            fontSize: "0.72rem",
-                            mt: 0.75,
-                            textAlign: "right",
-                          }}
-                        >
-                          {formatMessageTime(message.createdAt)}
-                        </Typography>
+                        {isEditing ? (
+                          <>
+                            <TextField
+                              value={editingMessageContent}
+                              onChange={(event) => setEditingMessageContent(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" && !event.shiftKey) {
+                                  event.preventDefault();
+                                  void handleUpdateMessage(message.id);
+                                }
+
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  cancelEditingMessage();
+                                }
+                              }}
+                              multiline
+                              minRows={2}
+                              maxRows={6}
+                              autoFocus
+                              fullWidth
+                              InputProps={{
+                                sx: {
+                                  color: "#e2e8f0",
+                                  bgcolor: "rgba(255,255,255,0.04)",
+                                  borderRadius: 2,
+                                },
+                              }}
+                            />
+                            <Stack direction="row" spacing={1} justifyContent="flex-end">
+                              <Button
+                                size="small"
+                                variant="text"
+                                onClick={cancelEditingMessage}
+                                disabled={isProcessing}
+                                sx={{ color: "#94a3b8" }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                startIcon={<SaveRoundedIcon fontSize="small" />}
+                                onClick={() => void handleUpdateMessage(message.id)}
+                                disabled={!editingMessageContent.trim() || isProcessing}
+                                sx={{
+                                  bgcolor: "#2563eb",
+                                  boxShadow: "none",
+                                  "&:hover": { bgcolor: "#1d4ed8" },
+                                }}
+                              >
+                                Save
+                              </Button>
+                            </Stack>
+                          </>
+                        ) : (
+                          <>
+                            <Typography sx={{ color: "#e2e8f0", whiteSpace: "pre-wrap" }}>
+                              {message.content}
+                            </Typography>
+                            <Stack direction="row" alignItems="center" justifyContent="flex-end" spacing={0.75}>
+                              <Typography
+                                sx={{
+                                  color: "#94a3b8",
+                                  fontSize: "0.72rem",
+                                  textAlign: "right",
+                                }}
+                              >
+                                {formatMessageTime(message.createdAt)}
+                              </Typography>
+                              {message.editedAt ? (
+                                <Typography
+                                  sx={{
+                                    color: "#93c5fd",
+                                    fontSize: "0.72rem",
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  {formatEditedLabel(message)}
+                                </Typography>
+                              ) : null}
+                              {isMine ? (
+                                <Stack direction="row" spacing={0.25}>
+                                  <Tooltip title="Редактировать">
+                                    <span>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => startEditingMessage(message)}
+                                        disabled={messageActionId !== null}
+                                        sx={{ color: "#bfdbfe" }}
+                                      >
+                                        <EditOutlinedIcon fontSize="small" />
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
+                                  <Tooltip title="Удалить">
+                                    <span>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => void handleDeleteMessage(message.id)}
+                                        disabled={messageActionId !== null}
+                                        sx={{ color: "#fda4af" }}
+                                      >
+                                        <DeleteOutlineRoundedIcon fontSize="small" />
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
+                                </Stack>
+                              ) : null}
+                            </Stack>
+                          </>
+                        )}
                       </Box>
                     );
                   })}
@@ -920,7 +1133,7 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
       return {
         chatId: source.id,
         name: source.title,
-        lastMessage: source.lastMessage?.content || "Нет сообщений",
+        lastMessage: await resolveConversationLastMessage(source),
       };
     }
 
@@ -935,9 +1148,29 @@ async function mapConversation(chat: Chat, me: UserProfile): Promise<Conversatio
     chatId: source.id,
     userId: otherUser.id,
     name: fullName,
-    lastMessage: source.lastMessage?.content || "Нет сообщений",
+    lastMessage: await resolveConversationLastMessage(source),
     avatarUrl: otherUser.avatarUrl,
   };
+}
+
+async function resolveConversationLastMessage(chat: Chat): Promise<string> {
+  const directContent = chat.lastMessage?.content?.trim();
+  if (directContent) {
+    return directContent;
+  }
+
+  const chatId = getChatId(chat);
+  if (!isValidChatId(chatId)) {
+    return "Нет сообщений";
+  }
+
+  try {
+    const history = await messagesApi.getChatHistory(chatId, { limit: 1 });
+    const lastMessage = history.at(-1)?.content?.trim();
+    return lastMessage || "Нет сообщений";
+  } catch {
+    return "Нет сообщений";
+  }
 }
 
 function formatMessageTime(dateString: string): string {
@@ -945,6 +1178,14 @@ function formatMessageTime(dateString: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatEditedLabel(message: Message): string | null {
+  if (!message.editedAt) {
+    return null;
+  }
+
+  return `изменено ${formatMessageTime(message.editedAt)}`;
 }
 
 function isUnauthorizedError(error: unknown): boolean {

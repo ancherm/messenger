@@ -14,7 +14,6 @@ export interface UserProfile {
   lastName?: string;
   phone?: string;
   avatarUrl?: string;
-  bio?: string;
   status?: UserStatus | string;
   active?: boolean;
   lastSeenAt?: string;
@@ -48,10 +47,10 @@ export interface AuthResponse extends AuthTokens {
 }
 
 export interface UpdateUserRequest {
+  email?: string;
   firstName?: string;
   lastName?: string;
   phone?: string;
-  bio?: string;
   avatarUrl?: string;
   status?: UserStatus | string;
 }
@@ -60,15 +59,17 @@ export interface Message {
   id: number;
   chatId?: number;
   senderId: number;
+  senderUsername?: string;
   receiverId?: number;
   content: string;
   contentType?: MessageContentType;
   replyToMessageId?: number;
-  attachmentUrl?: string;
-  attachmentName?: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   createdAt: string;
-  updatedAt: string;
-  read: boolean;
+  editedAt?: string | null;
+  updatedAt?: string;
+  read?: boolean;
 }
 
 export interface SendMessageRequest {
