@@ -25,4 +25,5 @@ public class MessageResponse {
     private Long replyToMessageId;
     private LocalDateTime createdAt;
     private LocalDateTime editedAt;
+    private boolean pinned;
 }

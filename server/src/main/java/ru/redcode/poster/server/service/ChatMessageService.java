@@ -148,7 +148,8 @@ public class ChatMessageService {
                 m.getAttachmentName(),
                 m.getReplyToMessageId(),
                 m.getCreatedAt(),
-                editedAt
-        );
+                editedAt,
+                m.isPinned()
+                );
     }
 }
