@@ -1,0 +1,28 @@
+info:
+  name: reply-message
+  type: http
+  seq: 9
+
+http:
+  method: post
+  url: http://localhost:8888/api/chats/{{chatId}}/messages
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "content": "Ответ",
+        "contentType": "TEXT",
+        "replyToMessageId": 5
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

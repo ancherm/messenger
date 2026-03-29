@@ -1,7 +1,7 @@
 info:
-  name: create-chat
+  name: create-group-chat
   type: http
-  seq: 1
+  seq: 3
 
 http:
   method: post
@@ -15,21 +15,13 @@ http:
     type: json
     data: |-
       {
-        "type": "PRIVATE",
-        "peerUserId": 1
+        "type": "GROUP",
+        "title": "Тестовая группа",
+        "participantIds": [
+          2
+        ]
       }
   auth: inherit
-
-runtime:
-  actions:
-    - type: set-variable
-      phase: after-response
-      selector:
-        expression: res.body.id
-        method: jsonq
-      variable:
-        name: chatId
-        scope: runtime
 
 settings:
   encodeUrl: false
