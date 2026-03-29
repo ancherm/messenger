@@ -8,15 +8,17 @@
 export interface UserProfile {
   id: number;
   username: string;
-  email: string;
+  email?: string | null;
   firstName?: string;
   lastName?: string;
   phone?: string;
   avatarUrl?: string;
   bio?: string;
   lastSeenAt?: string;
+  status?: string;
+  active?: boolean;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface CreateUserRequest {
@@ -33,6 +35,20 @@ export interface UpdateUserRequest {
   phone?: string;
   bio?: string;
   avatarUrl?: string;
+}
+
+export interface LoginRequest {
+  emailOrUsername: string;
+  password: string;
+}
+
+export interface AuthTokens {
+  token: string;
+  refreshToken?: string;
+}
+
+export interface AuthResponse extends AuthTokens {
+  user?: UserProfile;
 }
 
 // ─── Message Types ────────────────────────────────────────────
