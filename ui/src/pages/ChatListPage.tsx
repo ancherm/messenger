@@ -295,7 +295,29 @@ export default function ChatListPage() {
       setGroupProfileLoading(true);
       setGroupProfileError(null);
       const details = await chatsApi.getDetails(chatId);
-      setGroupProfile(details);
+      const participants = await Promise.all(
+        details.participants.map(async (participant) => {
+          if (participant.user?.avatarUrl) {
+            return participant;
+          }
+
+          try {
+            const profile = await usersApi.getById(participant.userId);
+            return {
+              ...participant,
+              username: participant.username ?? profile.username,
+              user: profile,
+            };
+          } catch {
+            return participant;
+          }
+        })
+      );
+
+      setGroupProfile({
+        ...details,
+        participants,
+      });
       setGroupProfileOpen(true);
     } catch (loadError) {
       setGroupProfileError(
@@ -1552,10 +1574,16 @@ export default function ChatListPage() {
                       }}
                     >
                       <ListItemAvatar>
-                        <Avatar>{participant.username?.[0]?.toUpperCase() ?? "U"}</Avatar>
+                        <Avatar src={participant.user?.avatarUrl}>
+                          {(participant.user?.username ?? participant.username)?.[0]?.toUpperCase() ?? "U"}
+                        </Avatar>
                       </ListItemAvatar>
                       <ListItemText
-                        primary={<Typography sx={{ color: "#fff" }}>{participant.username}</Typography>}
+                        primary={
+                          <Typography sx={{ color: "#fff" }}>
+                            {participant.user?.username ?? participant.username}
+                          </Typography>
+                        }
                         secondary={
                           <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
                             {participant.role || "MEMBER"}
