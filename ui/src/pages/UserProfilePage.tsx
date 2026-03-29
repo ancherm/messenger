@@ -1,33 +1,28 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import type { ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Avatar,
-  TextField,
-  Button,
   Typography,
   Box,
   Divider,
   Chip,
-  InputAdornment,
+  IconButton,
+  Button,
+  TextField,
 } from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
-import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonIcon from "@mui/icons-material/Person";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
-import LinkIcon from "@mui/icons-material/Link";
-import BadgeIcon from "@mui/icons-material/Badge";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
 // ─── Константы темы ────────────────────────────────────────────
 const ACCENT = "#3b82f6";
-const CARD_BG = "#0a1628";
-const FIELD_BG = "#060d1a";
-const TEXT_MUTED = "#64748b";
-const GRADIENT = "linear-gradient(135deg, #000000 0%, #0a1628 50%, #1e3a5f 100%)";
+const TEXT_MUTED = "#8f9fb8";
+const TEXT_PRIMARY = "#e2e8f0";
+const CARD_BACKGROUND = "rgba(11, 27, 56, 0.92)";
 
 // ─── Типы ──────────────────────────────────────────────────────
 type User = {
@@ -38,114 +33,49 @@ type User = {
   lastName?: string;
   phone?: string;
   avatarUrl?: string;
+  status?: string;
   lastSeenAt?: string;
+  createdAt?: string;
+  active?: boolean;
 };
-
-type FieldConfig = {
-  label: string;
-  name: keyof User;
-  icon: React.ReactNode;
-  fullWidth?: boolean;
-};
-
-type FieldProps = FieldConfig & {
-  value?: string;
-  editing: boolean;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-};
-
-// ─── Компонент поля ────────────────────────────────────────────
-const Field: React.FC<FieldProps> = ({ label, name, value, editing, onChange, icon }) => (
-  <Box display="flex" flexDirection="row" alignItems="center" justifyContent="space-between" width="100%">
-    <Typography
-      variant="caption"
-      sx={{
-        color: TEXT_MUTED,
-        fontWeight: 700,
-        letterSpacing: 1,
-        textTransform: "uppercase",
-        fontSize: "0.7rem",
-        minWidth: 120,
-        textAlign: "left",
-      }}
-    >
-      {label}
-    </Typography>
-
-    {editing ? (
-      <TextField
-        name={name}
-        value={value || ""}
-        onChange={onChange}
-        variant="outlined"
-        size="small"
-        sx={{
-          flex: 1,
-          maxWidth: 300,
-          "& .MuiInputBase-input": { color: "white", py: 1 },
-          "& .MuiOutlinedInput-root": {
-            bgcolor: FIELD_BG,
-            borderRadius: 2,
-            transition: "box-shadow 0.2s",
-            "& fieldset": { borderColor: "rgba(255,255,255,0.1)" },
-            "&:hover fieldset": { borderColor: ACCENT },
-            "&.Mui-focused fieldset": { borderColor: ACCENT },
-            "&.Mui-focused": { boxShadow: `0 0 0 3px rgba(124,77,255,0.15)` },
-          },
-        }}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <Box sx={{ color: ACCENT, display: "flex", opacity: 0.8 }}>{icon}</Box>
-            </InputAdornment>
-          ),
-        }}
-      />
-    ) : (
-      <Box display="flex" alignItems="center" gap={1} sx={{ flex: 1, maxWidth: 300, justifyContent: "flex-start" }}>
-        <Box sx={{ color: ACCENT, display: "flex", opacity: 0.6 }}>{icon}</Box>
-        <Typography variant="body2" sx={{ color: "white", fontWeight: 500 }}>
-          {value || "—"}
-        </Typography>
-      </Box>
-    )}
-  </Box>
-);
 
 // ─── Конфиги секций ────────────────────────────────────────────
-const PERSONAL_FIELDS: FieldConfig[] = [
-  { label: "Username",   name: "username",  icon: <AccountCircleIcon fontSize="small" /> },
-  { label: "First Name", name: "firstName", icon: <BadgeIcon fontSize="small" /> },
-  { label: "Last Name",  name: "lastName",  icon: <BadgeIcon fontSize="small" /> },
-];
-
-const CONTACT_FIELDS: FieldConfig[] = [
-  { label: "Email",      name: "email",     icon: <EmailIcon fontSize="small" /> },
-  { label: "Phone",      name: "phone",     icon: <PhoneIcon fontSize="small" /> },
-  { label: "Avatar URL", name: "avatarUrl", icon: <LinkIcon fontSize="small" />, fullWidth: true },
-];
 
 // ─── Главная страница ──────────────────────────────────────────
-export default function UserProfilePage() {
+type UserProfilePageProps = {
+  onClose?: () => void;
+};
+
+export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) {
+  const navigate = useNavigate();
+  const close = onClose ?? (() => navigate("/"));
   const [user, setUser]       = useState<User | null>(null);
   const [form, setForm]       = useState<Partial<User>>({});
   const [editing, setEditing] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const mockUser: User = {
-      id: 1,
-      username: "johndoe",
-      email: "john@example.com",
-      firstName: "John",
-      lastName: "Doe",
-      phone: "+1234567890",
-      avatarUrl: "https://i.pravatar.cc/150?img=3",
-      lastSeenAt: new Date().toISOString(),
-    };
-    setUser(mockUser);
-    setForm(mockUser);
+    const scheduleMockData = window.setTimeout(() => {
+      const mockUser: User = {
+        id: 1,
+        username: "johndoe",
+        email: "john@example.com",
+        firstName: "John",
+        lastName: "Doe",
+        phone: "+1234567890",
+        avatarUrl: "https://i.pravatar.cc/150?img=3",
+        status: "ONLINE",
+        lastSeenAt: new Date().toISOString(),
+        createdAt: new Date(Date.now() - 86400 * 1000 * 90).toISOString(),
+        active: true,
+      };
+      setUser(mockUser);
+      setForm(mockUser);
+    }, 0);
+
+    return () => window.clearTimeout(scheduleMockData);
   }, []);
 
   useEffect(() => {
@@ -166,25 +96,37 @@ export default function UserProfilePage() {
     };
   }, []);
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const avatarUrl = reader.result as string;
+      setForm((prev) => ({ ...prev, avatarUrl }));
+      setUser((prev) => (prev ? { ...prev, avatarUrl } : prev));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = () => {
-    setUser(form as User);
+    setUser((prev) => (prev ? { ...prev, ...(form as User) } : prev));
     setEditing(false);
   };
 
   const handleCancel = () => {
-    setForm(user as User); // ← сброс несохранённых изменений
+    setForm(user ?? {});
     setEditing(false);
   };
 
   const formatLastSeen = (dateString?: string) => {
     if (!dateString) return "—";
     const date = new Date(dateString);
-    const diff = Date.now() - date.getTime();
+    const diff = new Date().getTime() - date.getTime();
     const DAY  = 86_400_000;
     const YEAR = DAY * 365;
     if (diff < DAY)  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -194,127 +136,205 @@ export default function UserProfilePage() {
 
   if (!user)
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" bgcolor="#0d0d1a">
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
         <Typography color={TEXT_MUTED}>Loading…</Typography>
       </Box>
     );
 
-  // ─── Разметка ────────────────────────────────────────────────
+  const infoRows = [
+    { icon: <PhoneIcon fontSize="small" />, label: "Phone",     value: (editing ? form.phone : user.phone) || "—" },
+    { icon: <AccountCircleIcon fontSize="small" />, label: "Username",  value: (editing ? form.username : user.username) || "—" },
+    { icon: <EmailIcon fontSize="small" />, label: "Email",     value: (editing ? form.email : user.email) || "—" },
+    { icon: <PersonIcon fontSize="small" />, label: "Full Name", value: ((editing ? form.firstName : user.firstName) ?? "") + " " + ((editing ? form.lastName : user.lastName) ?? "") || "—" },
+  ];
+
   return (
     <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      sx={{ background: "linear-gradient(160deg, #000000 0%, #0a1628 50%, #1e3a5f 100%)", p: 3 }}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "100%",
+        minHeight: "100%",
+        boxSizing: "border-box",
+      }}
     >
       <Box
         sx={{
-          maxWidth: 600,
-          width: "100%",
-          borderRadius: 4,
+          width: "clamp(360px, 92%, 620px)",
+          bgcolor: CARD_BACKGROUND,
+          borderRadius: 3,
           overflow: "hidden",
-          bgcolor: CARD_BG,
-          border: "1px solid rgba(124,77,255,0.2)",
-          boxShadow: "0 30px 60px rgba(0,0,0,0.6), 0 0 40px rgba(124,77,255,0.08)",
+          position: "relative",
+          pb: 2,
+          maxHeight: "calc(100vh - 60px)",
+          overflowY: "auto",
         }}
       >
-        {/* ── Аватар + имя ───────────────────────────────────── */}
-        <Box display="flex" flexDirection="column" alignItems="center" sx={{ mt: 3, mb: 3 }}>
-          <Avatar
-            src={user.avatarUrl}
-            sx={{ width: 100, height: 100, fontSize: "2.2rem", bgcolor: "#333" }}
-          >
-            {user.username[0].toUpperCase()}
-          </Avatar>
+        <IconButton
+          onClick={close}
+          sx={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            color: "rgba(255,255,255,0.72)",
+            zIndex: 2,
+            bgcolor: "rgba(4,9,18,0.6)",
+            "&:hover": { bgcolor: "rgba(5,10,20,0.85)" },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
 
-          {/* Индикатор онлайн */}
-          <Box
-            sx={{
-              width: 16, height: 16, borderRadius: "50%",
-              bgcolor: isOnline ? "#00e676" : "#616161",
-              border: `3px solid ${CARD_BG}`,
-              boxShadow: isOnline ? "0 0 10px #00e676" : "none",
-              mt: -2, ml: 8,
-              transition: "all 0.4s ease",
-              zIndex: 2,
-            }}
-          />
-
-          <Typography variant="h5" sx={{ color: "white", fontWeight: 800, mt: 1.5, letterSpacing: 0.5 }}>
+        <Box sx={{ textAlign: "center", p: 3, pt: 8 }}>
+          <Box sx={{ position: "relative", width: 110, height: 110, mx: "auto", mb: 1 }}>
+            <Avatar
+              src={form.avatarUrl ?? user.avatarUrl}
+              sx={{ width: 110, height: 110 }}
+            >
+              {user.username?.[0]?.toUpperCase() ?? "U"}
+            </Avatar>
+            {editing && (
+              <IconButton
+                onClick={() => fileInputRef.current?.click()}
+                sx={{
+                  position: "absolute",
+                  bottom: -5,
+                  right: -5,
+                  bgcolor: "rgba(0,0,0,0.5)",
+                  color: "#fff",
+                  width: 32,
+                  height: 32,
+                  p: 0,
+                  "&:hover": { bgcolor: "rgba(0,0,0,0.8)" },
+                }}
+              >
+                <AccountCircleIcon fontSize="small" />
+              </IconButton>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handleAvatarChange}
+            />
+          </Box>
+          <Typography variant="h5" sx={{ color: TEXT_PRIMARY, fontWeight: 800, mb: 0.5 }}>
             {user.firstName} {user.lastName}
           </Typography>
-
           <Typography variant="body2" sx={{ color: TEXT_MUTED, mb: 1.5 }}>
             @{user.username}
           </Typography>
 
           <Chip
-            size="small"
             label={isOnline ? "● Online" : `Last seen ${formatLastSeen(user.lastSeenAt)}`}
             sx={{
-              bgcolor:     isOnline ? "rgba(0,230,118,0.12)" : "rgba(255,255,255,0.07)",
-              color:       isOnline ? "#00e676"              : TEXT_MUTED,
-              border:      `1px solid ${isOnline ? "rgba(0,230,118,0.35)" : "rgba(255,255,255,0.1)"}`,
-              fontWeight:  700,
-              fontSize:    "0.68rem",
-              letterSpacing: 0.5,
+              bgcolor: isOnline ? "rgba(0,230,118,0.13)" : "rgba(255,255,255,0.06)",
+              color: isOnline ? "#00e676" : TEXT_MUTED,
+              border: isOnline ? "1px solid rgba(0,230,118,0.35)" : "1px solid rgba(255,255,255,0.11)",
+              fontWeight: 700,
+              fontSize: "0.68rem",
+              minWidth: 148,
             }}
           />
-        </Box>
-
-        {/* ── Контент ────────────────────────────────────────── */}
-        <Box sx={{ px: 4, pb: 4 }}>
-
-          {/* Секция: Personal */}
-          <SectionHeader icon={<PersonIcon sx={{ fontSize: 16 }} />} title="Personal Information" />
-          <Box display="flex" flexDirection="column" gap={2} mb={3} alignItems="flex-start" width="100%">
-            {PERSONAL_FIELDS.map(({ label, name, icon }) => (
-              <Box key={name} width="100%">
-                <Field label={label} name={name} value={form[name] as string} editing={editing} onChange={handleChange} icon={icon} />
-              </Box>
-            ))}
-          </Box>
-
-          <Divider sx={{ borderColor: "rgba(255,255,255,0.07)", mb: 3 }} />
-
-          {/* Секция: Contact */}
-          <SectionHeader icon={<EmailIcon sx={{ fontSize: 16 }} />} title="Contact Information" />
-          <Box display="flex" flexDirection="column" gap={2} mb={4} alignItems="flex-start" width="100%">
-            {CONTACT_FIELDS.map(({ label, name, icon }) => (
-              <Box key={name} width="100%">
-                <Field label={label} name={name} value={form[name] as string} editing={editing} onChange={handleChange} icon={icon} />
-              </Box>
-            ))}
-          </Box>
-
-          {/* ── Кнопки ─────────────────────────────────────── */}
-          <Box display="flex" justifyContent="flex-end" gap={2}>
+          <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
             {editing ? (
               <>
                 <Button
                   variant="outlined"
-                  startIcon={<CloseIcon />}
                   onClick={handleCancel}
-                  sx={{
-                    color: TEXT_MUTED,
-                    borderColor: "rgba(255,255,255,0.15)",
-                    borderRadius: 2,
-                    "&:hover": { borderColor: "rgba(255,255,255,0.35)", bgcolor: "rgba(255,255,255,0.05)" },
-                  }}
+                  sx={{ color: TEXT_MUTED, borderColor: "rgba(255,255,255,0.2)" }}
                 >
                   Cancel
                 </Button>
-                <GradientButton startIcon={<SaveIcon />} onClick={handleSave}>
-                  Save Changes
-                </GradientButton>
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  sx={{ bgcolor: ACCENT, color: "#fff", '&:hover': { bgcolor: '#2563eb' } }}
+                >
+                  Save
+                </Button>
               </>
             ) : (
-              <GradientButton startIcon={<EditIcon />} onClick={() => setEditing(true)}>
-                Edit Profile
-              </GradientButton>
+              <Button
+                variant="contained"
+                onClick={() => setEditing(true)}
+                sx={{ bgcolor: ACCENT, color: "#fff", '&:hover': { bgcolor: '#2563eb' } }}
+              >
+                Edit
+              </Button>
             )}
           </Box>
+        </Box>
+
+        <Divider sx={{ borderColor: "rgba(255,255,255,0.15)", mb: 1 }} />
+
+        <Box sx={{ px: 2, py: 1 }}>
+          {editing ? (
+            <Box display="flex" flexDirection="column" gap={2}>
+              <TextField
+                label="First Name"
+                name="firstName"
+                value={form.firstName ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+              />
+              <TextField
+                label="Last Name"
+                name="lastName"
+                value={form.lastName ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+              />
+              <TextField
+                label="Email"
+                name="email"
+                value={form.email ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+              />
+              <TextField
+                label="Phone"
+                name="phone"
+                value={form.phone ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+              />
+            </Box>
+          ) : (
+            infoRows.map((row) => (
+              <Box
+                key={row.label}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  py: 1,
+                  px: 1.5,
+                  borderBottom: "1px solid rgba(255,255,255,0.07)",
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                  <Box sx={{ color: ACCENT }}>{row.icon}</Box>
+                  <Typography sx={{ color: TEXT_MUTED, fontSize: "0.76rem", textTransform: "uppercase", fontWeight: 700 }}>
+                    {row.label}
+                  </Typography>
+                </Box>
+                <Typography sx={{ color: TEXT_PRIMARY, fontWeight: 600, fontSize: "0.95rem" }}>
+                  {row.value}
+                </Typography>
+              </Box>
+            ))
+          )}
         </Box>
       </Box>
     </Box>
@@ -322,51 +342,3 @@ export default function UserProfilePage() {
 }
 
 // ─── Вспомогательные компоненты ────────────────────────────────
-
-function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return (
-    <Box display="flex" alignItems="center" gap={1} mb={2}>
-      <Box sx={{ color: ACCENT, display: "flex" }}>{icon}</Box>
-      <Typography
-        variant="caption"
-        sx={{ color: TEXT_MUTED, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", fontSize: "0.68rem" }}
-      >
-        {title}
-      </Typography>
-    </Box>
-  );
-}
-
-function GradientButton({
-  children,
-  startIcon,
-  onClick,
-}: {
-  children: React.ReactNode;
-  startIcon?: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      variant="contained"
-      startIcon={startIcon}
-      onClick={onClick}
-      sx={{
-        background: GRADIENT,
-        borderRadius: 2,
-        fontWeight: 700,
-        px: 3,
-        boxShadow: "0 4px 18px rgba(124,77,255,0.45)",
-        transition: "all 0.2s ease",
-        "&:hover": {
-          boxShadow: "0 6px 24px rgba(124,77,255,0.65)",
-          transform: "translateY(-2px)",
-          background: GRADIENT,
-        },
-        "&:active": { transform: "translateY(0)" },
-      }}
-    >
-      {children}
-    </Button>
-  );
-}
