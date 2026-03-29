@@ -7,8 +7,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import ru.redcode.poster.server.dto.ApiError;
+import ru.redcode.poster.server.exceptions.BadRequestException;
+import ru.redcode.poster.server.exceptions.ChatNotFoundException;
 import ru.redcode.poster.server.exceptions.EmailAlreadyExistsException;
+import ru.redcode.poster.server.exceptions.ForbiddenOperationException;
 import ru.redcode.poster.server.exceptions.InvalidCredentialsException;
+import ru.redcode.poster.server.exceptions.MessageNotFoundException;
 import ru.redcode.poster.server.exceptions.UserNotFoundException;
 import ru.redcode.poster.server.exceptions.UsernameAlreadyExistsException;
 
@@ -40,6 +44,26 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiError> handleUserNotFound(UserNotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(ChatNotFoundException.class)
+    public ResponseEntity<ApiError> handleChatNotFound(ChatNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(MessageNotFoundException.class)
+    public ResponseEntity<ApiError> handleMessageNotFound(MessageNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenOperationException.class)
+    public ResponseEntity<ApiError> handleForbidden(ForbiddenOperationException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiError> handleBadRequest(BadRequestException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -21,7 +21,7 @@ import ru.redcode.poster.server.model.CustomUserDetails;
 import ru.redcode.poster.server.service.UserService;
 
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 

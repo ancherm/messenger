@@ -16,7 +16,7 @@ import ru.redcode.poster.server.utils.SecurityUtils;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/test")
+@RequestMapping("/api/test")
 @RequiredArgsConstructor
 public class Test {
 
