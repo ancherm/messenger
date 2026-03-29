@@ -144,7 +144,7 @@ export default function UserProfilePage({
     });
   }, [isReadOnly]);
 
-  const isOnline = !!user && (user.status === "ONLINE" || user.active);
+  const isOnline = !!user && (isReadOnly ? user.status === "ONLINE" : user.status === "ONLINE" || user.active);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
