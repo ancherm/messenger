@@ -109,6 +109,7 @@ export default function ChatListPage() {
   const [groupProfileLoading, setGroupProfileLoading] = useState(false);
   const [groupProfileError, setGroupProfileError] = useState<string | null>(null);
   const [groupProfile, setGroupProfile] = useState<ChatDetailsResponse | null>(null);
+  const [removingParticipantId, setRemovingParticipantId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
@@ -329,13 +330,42 @@ export default function ChatListPage() {
     }
   }, []);
 
-  const handleDeleteChat = useCallback(
-    async (chat: ConversationItem) => {
-      if (!chat.userId || deletingChatId === chat.chatId) {
+  const removeGroupParticipant = useCallback(
+    async (participantUserId: number) => {
+      if (!groupProfile) {
         return;
       }
 
-      const confirmed = window.confirm(`Удалить чат с ${chat.name}?`);
+      setRemovingParticipantId(participantUserId);
+      setGroupProfileError(null);
+
+      try {
+        await chatsApi.removeParticipant(groupProfile.chat.id, participantUserId);
+        setGroupProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                participants: prev.participants.filter((participant) => participant.userId !== participantUserId),
+              }
+            : prev
+        );
+      } catch (error) {
+        setGroupProfileError(error instanceof Error ? error.message : "Не удалось удалить участника");
+      } finally {
+        setRemovingParticipantId(null);
+      }
+    },
+    [groupProfile]
+  );
+
+  const handleDeleteChat = useCallback(
+    async (chat: ConversationItem) => {
+      if (deletingChatId === chat.chatId) {
+        return;
+      }
+
+      const actionLabel = chat.chatType === "GROUP" ? "Выйти из группы" : "Удалить чат";
+      const confirmed = window.confirm(`${actionLabel} ${chat.name}?`);
       if (!confirmed) {
         return;
       }
@@ -716,7 +746,8 @@ export default function ChatListPage() {
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Avatar
               src={currentUser?.avatarUrl}
-              sx={{ width: 42, height: 42, bgcolor: palette.accentSoft, color: "#bfdbfe" }}
+              onClick={() => setProfileOpen(true)}
+              sx={{ width: 42, height: 42, bgcolor: palette.accentSoft, color: "#bfdbfe", cursor: "pointer" }}
             >
               {currentUser?.username?.[0]?.toUpperCase() ?? "U"}
             </Avatar>
@@ -731,18 +762,6 @@ export default function ChatListPage() {
           </Stack>
 
           <Stack direction="row" spacing={1}>
-            <Tooltip title="Профиль">
-              <IconButton
-                color="inherit"
-                onClick={() => setProfileOpen(true)}
-                sx={{
-                  color: palette.accent,
-                  "&:hover": { bgcolor: palette.accentSoft },
-                }}
-              >
-                <AccountCircleIcon />
-              </IconButton>
-            </Tooltip>
             <Tooltip title="Выйти">
               <IconButton
                 color="inherit"
@@ -964,8 +983,8 @@ export default function ChatListPage() {
                         </Typography>
                       }
                     />
-                    {chat.userId ? (
-                      <Tooltip title="Удалить чат">
+                    {(chat.userId || chat.chatType === "GROUP") ? (
+                      <Tooltip title={chat.chatType === "GROUP" ? "Выйти из группы" : "Удалить чат"}>
                         <span>
                           <IconButton
                             edge="end"

@@ -315,28 +315,29 @@ export default function UserProfilePage({
           />
 
           <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
-            {isReadOnly ? (
-              <>
-                <Chip
-                  label="Read only"
-                  sx={{
-                    bgcolor: "rgba(59,130,246,0.12)",
-                    color: "#93c5fd",
-                    border: "1px solid rgba(59,130,246,0.28)",
-                    fontWeight: 700,
-                  }}
-                />
-                {onAction ? (
-                  <Button
-                    variant="contained"
-                    onClick={() => void onAction(user)}
-                    disabled={actionLoading}
-                    sx={{ bgcolor: ACCENT, color: "#fff", "&:hover": { bgcolor: "#2563eb" } }}
-                  >
-                    {actionLoading ? "Opening..." : actionLabel ?? "Open"}
-                  </Button>
-                ) : null}
-              </>
+            {onAction ? (
+              <Button
+                variant="contained"
+                onClick={() => void onAction(user)}
+                disabled={actionLoading}
+                sx={{
+                  px: 4,
+                  py: 1.25,
+                  bgcolor: "linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  borderRadius: "999px",
+                  boxShadow: "0 18px 32px rgba(59,130,246,0.18)",
+                  textTransform: "none",
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                  "&:hover": {
+                    transform: "translateY(-1px)",
+                    boxShadow: "0 22px 38px rgba(59,130,246,0.25)",
+                  },
+                }}
+              >
+                {actionLoading ? "Загрузка..." : actionLabel ?? "Написать"}
+              </Button>
             ) : editing ? (
               <>
                 <Button
