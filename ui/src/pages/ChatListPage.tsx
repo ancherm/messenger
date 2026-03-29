@@ -19,7 +19,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import AddCircleOutlineRoundedIcon from "@mui/icons-material/AddCircleOutlineRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
@@ -27,6 +26,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import PersonSearchOutlinedIcon from "@mui/icons-material/PersonSearchOutlined";
+import PushPinRoundedIcon from "@mui/icons-material/PushPinRounded";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
@@ -235,6 +235,10 @@ export default function ChatListPage() {
   const selectedConversation = useMemo(
     () => conversations.find((item) => item.chatId === selectedChatId) ?? null,
     [conversations, selectedChatId]
+  );
+  const pinnedMessage = useMemo(
+    () => messages.find((message) => message.pinned) ?? null,
+    [messages]
   );
 
   useEffect(() => {
@@ -491,6 +495,39 @@ export default function ChatListPage() {
     } catch (deleteError) {
       setMessagesError(
         deleteError instanceof Error ? deleteError.message : "Failed to delete message"
+      );
+    } finally {
+      setMessageActionId(null);
+    }
+  };
+
+  const handleTogglePinMessage = async (message: Message) => {
+    if (!selectedChatId || messageActionId !== null) {
+      return;
+    }
+
+    try {
+      setMessageActionId(message.id);
+      setMessagesError(null);
+
+      if (message.pinned) {
+        await messagesApi.unpin(selectedChatId, message.id);
+        setMessages((prev) =>
+          prev.map((item) => (item.id === message.id ? { ...item, pinned: false } : item))
+        );
+        return;
+      }
+
+      await messagesApi.pin(selectedChatId, message.id);
+      setMessages((prev) =>
+        prev.map((item) => ({
+          ...item,
+          pinned: item.id === message.id,
+        }))
+      );
+    } catch (pinError) {
+      setMessagesError(
+        pinError instanceof Error ? pinError.message : "Failed to update pinned message"
       );
     } finally {
       setMessageActionId(null);
@@ -1185,6 +1222,38 @@ export default function ChatListPage() {
               </Stack>
             </Box>
 
+            {pinnedMessage ? (
+              <Box
+                sx={{
+                  px: 3,
+                  py: 1.25,
+                  borderBottom: "1px solid rgba(255,255,255,0.08)",
+                  bgcolor: "rgba(59,130,246,0.08)",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 1,
+                }}
+              >
+                <PushPinRoundedIcon sx={{ color: "#93c5fd", fontSize: 18, mt: 0.15 }} />
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ color: "#bfdbfe", fontSize: "0.78rem", fontWeight: 700 }}>
+                    Закрепленное сообщение
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: "#e2e8f0",
+                      fontSize: "0.9rem",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {pinnedMessage.content}
+                  </Typography>
+                </Box>
+              </Box>
+            ) : null}
+
             <Box
               sx={{
                 flex: 1,
@@ -1310,34 +1379,50 @@ export default function ChatListPage() {
                                   {formatEditedLabel(message)}
                                 </Typography>
                               ) : null}
-                              {isMine ? (
-                                <Stack direction="row" spacing={0.25}>
-                                  <Tooltip title="Редактировать">
-                                    <span>
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => startEditingMessage(message)}
-                                        disabled={messageActionId !== null}
-                                        sx={{ color: "#bfdbfe" }}
-                                      >
-                                        <EditOutlinedIcon fontSize="small" />
-                                      </IconButton>
-                                    </span>
-                                  </Tooltip>
-                                  <Tooltip title="Удалить">
-                                    <span>
-                                      <IconButton
-                                        size="small"
-                                        onClick={() => void handleDeleteMessage(message.id)}
-                                        disabled={messageActionId !== null}
-                                        sx={{ color: "#fda4af" }}
-                                      >
-                                        <DeleteOutlineRoundedIcon fontSize="small" />
-                                      </IconButton>
-                                    </span>
-                                  </Tooltip>
-                                </Stack>
-                              ) : null}
+                              <Stack direction="row" spacing={0.25}>
+                                <Tooltip title={message.pinned ? "Открепить" : "Закрепить"}>
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => void handleTogglePinMessage(message)}
+                                      disabled={messageActionId !== null}
+                                      sx={{
+                                        color: message.pinned ? "#facc15" : "#93c5fd",
+                                      }}
+                                    >
+                                      <PushPinRoundedIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                                {isMine ? (
+                                  <>
+                                    <Tooltip title="Редактировать">
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => startEditingMessage(message)}
+                                          disabled={messageActionId !== null}
+                                          sx={{ color: "#bfdbfe" }}
+                                        >
+                                          <EditOutlinedIcon fontSize="small" />
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                    <Tooltip title="Удалить">
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => void handleDeleteMessage(message.id)}
+                                          disabled={messageActionId !== null}
+                                          sx={{ color: "#fda4af" }}
+                                        >
+                                          <DeleteOutlineRoundedIcon fontSize="small" />
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                  </>
+                                ) : null}
+                              </Stack>
                             </Stack>
                           </>
                         )}
