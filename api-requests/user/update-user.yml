@@ -5,7 +5,7 @@ info:
 
 http:
   method: PATCH
-  url: http://localhost:8888/users/me
+  url: http://localhost:8888/api/users/me
   headers:
     - name: Authorization
       value: Bearer {{tokenLogin}}
