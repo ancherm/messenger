@@ -4,6 +4,7 @@ import AuthPage from "./pages/AuthPage";
 import UserProfilePage from "./pages/UserProfilePage";
 import ChatListPage from "./pages/ChatListPage";
 import { getAuthToken } from "./auth/storage";
+import SessionPresence from "./presence/SessionPresence";
 
 function ProtectedRoute({ children }: { children: ReactElement }) {
   const location = useLocation();
@@ -12,7 +13,12 @@ function ProtectedRoute({ children }: { children: ReactElement }) {
     return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
   }
 
-  return children;
+  return (
+    <>
+      <SessionPresence />
+      {children}
+    </>
+  );
 }
 
 function PublicOnlyRoute({ children }: { children: ReactElement }) {

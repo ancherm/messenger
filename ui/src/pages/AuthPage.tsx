@@ -75,10 +75,19 @@ export default function AuthPage() {
     setRegisterForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const completeAuth = async (payload: Awaited<ReturnType<typeof authApi.login>>) => {
+  const completeAuth = async (
+    payload: Awaited<ReturnType<typeof authApi.login>>,
+    profilePatch?: Pick<CreateUserRequest, "firstName" | "lastName">
+  ) => {
     setAuthSession(payload.token, payload.refreshToken, payload.user);
 
     try {
+      await usersApi.updateMe({
+        status: "ONLINE",
+        firstName: profilePatch?.firstName?.trim() || undefined,
+        lastName: profilePatch?.lastName?.trim() || undefined,
+      });
+
       const me = await usersApi.getMe();
       setStoredUser(me);
     } catch {
@@ -135,7 +144,10 @@ export default function AuthPage() {
         emailOrUsername: registerForm.username,
         password: registerForm.password,
       });
-      await completeAuth(response);
+      await completeAuth(response, {
+        firstName: registerForm.firstName,
+        lastName: registerForm.lastName,
+      });
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {
