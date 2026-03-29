@@ -19,6 +19,11 @@ public class ServerApplication {
 //			);
 //		}
 
+		Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
+		dotenv.entries().forEach(
+				dotenvEntry -> System.setProperty(dotenvEntry.getKey(), dotenvEntry.getValue())
+		);
+
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 
 		SpringApplication.run(ServerApplication.class, args);
