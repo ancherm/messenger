@@ -1,17 +1,22 @@
 /**
  * Mock API Client
- * Используется при VITE_API_MOCK=true
  */
 
 import type { RequestOptions } from "../client";
 import type {
-  UserProfile,
-  UpdateUserRequest,
-  CreateMessageRequest,
-  Message,
+  Chat,
+  CreateChatRequest,
   GetMessagesQuery,
+  LoginRequest,
+  LoginResponse,
+  Message,
+  RegisterRequest,
+  SendMessageRequest,
+  UpdateChatRequest,
+  UpdateUserRequest,
+  UserProfile,
 } from "../types";
-import { mockUsers, mockMessages } from "./data";
+import { mockChats, mockMessages, mockUsers } from "./data";
 
 const delay = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -19,7 +24,12 @@ export interface IApiClient {
   get<T>(endpoint: string, opts?: RequestOptions): Promise<T>;
   post<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T>;
   put<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T>;
+  patch<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T>;
   delete<T>(endpoint: string, opts?: RequestOptions): Promise<T>;
+}
+
+function currentUser(): UserProfile {
+  return mockUsers[0];
 }
 
 export class MockApiClient implements IApiClient {
@@ -27,41 +37,64 @@ export class MockApiClient implements IApiClient {
     await delay();
 
     if (endpoint === "/users/me") {
-      return (mockUsers[0] as unknown) as T;
+      return currentUser() as T;
     }
 
     if (endpoint.startsWith("/users/")) {
       const id = Number(endpoint.replace("/users/", ""));
-      const user = mockUsers.find((u) => u.id === id);
-      if (user) return (user as unknown) as T;
-      throw new Error("User not found");
+      const user = mockUsers.find((item) => item.id === id);
+      if (!user) throw new Error("User not found");
+      return user as T;
     }
 
-    if (endpoint === "/messages") {
+    if (endpoint === "/chats") {
+      return mockChats as T;
+    }
+
+    if (endpoint.startsWith("/chats/search")) {
+      const query = String(opts?.params?.query ?? "").toLowerCase();
+      const chats = mockChats.filter((chat) => {
+        const peer = mockUsers.find((user) => user.id === chat.peerUserId);
+        return (
+          chat.title?.toLowerCase().includes(query) ||
+          peer?.username.toLowerCase().includes(query) ||
+          [peer?.firstName, peer?.lastName].filter(Boolean).join(" ").toLowerCase().includes(query)
+        );
+      });
+      return chats as T;
+    }
+
+    if (endpoint.startsWith("/chats/") && endpoint.endsWith("/messages")) {
+      const [, , chatIdSegment] = endpoint.split("/");
+      const chatId = Number(chatIdSegment);
       const params = opts?.params as GetMessagesQuery | undefined;
-      const offset = Number(params?.offset ?? 0);
-      const limit = Number(params?.limit ?? 100);
-      const data = mockMessages.slice(offset, offset + limit);
-      return ({ data, total: mockMessages.length, limit, offset } as unknown) as T;
+      const limit = Number(params?.limit ?? 50);
+      const before = params?.before ? Number(params.before) : undefined;
+      const search = String(params?.search ?? "").toLowerCase();
+
+      let messages = mockMessages.filter((message) => message.chatId === chatId);
+      if (before) {
+        messages = messages.filter((message) => message.id < before);
+      }
+      if (search) {
+        messages = messages.filter((message) => message.content.toLowerCase().includes(search));
+      }
+
+      return messages.slice(-limit) as T;
     }
 
-    if (endpoint.startsWith("/messages/conversation/")) {
-      const userId = Number(endpoint.split("/").pop());
-      const all = mockMessages.filter((m) => m.senderId === userId || m.receiverId === userId);
-      const offset = Number((opts?.params as GetMessagesQuery | undefined)?.offset ?? 0);
-      const limit = Number((opts?.params as GetMessagesQuery | undefined)?.limit ?? 100);
-      const data = all.slice(offset, offset + limit);
-      return ({ data, total: all.length, limit, offset } as unknown) as T;
+    if (endpoint.startsWith("/chats/")) {
+      const id = Number(endpoint.replace("/chats/", ""));
+      const chat = mockChats.find((item) => item.id === id);
+      if (!chat) throw new Error("Chat not found");
+      return chat as T;
     }
 
-    if (endpoint === "/messages/unread") {
-      const data = mockMessages.filter((m) => !m.read);
-      return ({ data, total: data.length, limit: data.length, offset: 0 } as unknown) as T;
-    }
-
-    if (endpoint === "/messages/unread/count") {
-      const count = mockMessages.filter((m) => !m.read).length;
-      return ({ count } as unknown) as T;
+    if (endpoint.startsWith("/messages/")) {
+      const id = Number(endpoint.replace("/messages/", ""));
+      const message = mockMessages.find((item) => item.id === id);
+      if (!message) throw new Error("Message not found");
+      return message as T;
     }
 
     throw new Error(`Mock GET endpoint not implemented: ${endpoint}`);
@@ -70,93 +103,156 @@ export class MockApiClient implements IApiClient {
   async post<T>(endpoint: string, body?: unknown): Promise<T> {
     await delay();
 
-    if (endpoint === "/messages") {
-      const payload = body as CreateMessageRequest;
-      const newMessage: Message = {
+    if (endpoint === "/auth/login") {
+      const payload = body as LoginRequest;
+      const user = mockUsers.find((item) => item.username === payload.username);
+      if (!user) throw new Error("Invalid credentials");
+      return ({ token: "mock-token" } satisfies LoginResponse) as T;
+    }
+
+    if (endpoint === "/auth/register") {
+      const payload = body as RegisterRequest;
+      const user: UserProfile = {
+        id: mockUsers.length + 1,
+        username: payload.username,
+        email: payload.email,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      mockUsers.push(user);
+      return user as T;
+    }
+
+    if (endpoint === "/chats") {
+      const payload = body as CreateChatRequest;
+      const chat: Chat = {
+        id: mockChats.length + 1,
+        type: payload.type,
+        title: payload.title,
+        description: payload.description,
+        peerUserId: payload.peerUserId,
+        participantIds:
+          payload.type === "PRIVATE"
+            ? [currentUser().id, payload.peerUserId ?? currentUser().id]
+            : [currentUser().id, ...(payload.participantIds ?? [])],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      mockChats.push(chat);
+      return chat as T;
+    }
+
+    if (endpoint.startsWith("/chats/") && endpoint.endsWith("/messages")) {
+      const [, , chatIdSegment] = endpoint.split("/");
+      const chatId = Number(chatIdSegment);
+      const payload = body as SendMessageRequest;
+      const message: Message = {
         id: mockMessages.length + 1,
-        senderId: 1,
-        receiverId: payload.receiverId,
+        chatId,
+        senderId: currentUser().id,
         content: payload.content,
+        contentType: payload.contentType ?? "TEXT",
+        replyToMessageId: payload.replyToMessageId,
+        attachmentUrl: payload.attachmentUrl,
+        attachmentName: payload.attachmentName,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         read: false,
       };
-      mockMessages.push(newMessage);
-      return (newMessage as unknown) as T;
+      mockMessages.push(message);
+
+      const chat = mockChats.find((item) => item.id === chatId);
+      if (chat) {
+        chat.lastMessage = message;
+        chat.updatedAt = message.updatedAt;
+      }
+
+      return message as T;
     }
 
     if (endpoint === "/users") {
       const payload = body as Partial<UserProfile>;
-      const newUser: UserProfile = {
+      const user: UserProfile = {
         id: mockUsers.length + 1,
-        username: payload.username || "newuser",
-        email: payload.email || "new@example.com",
+        username: payload.username || `user${mockUsers.length + 1}`,
+        email: payload.email || `user${mockUsers.length + 1}@example.com`,
         firstName: payload.firstName,
         lastName: payload.lastName,
         phone: payload.phone,
         avatarUrl: payload.avatarUrl,
         bio: payload.bio,
+        status: payload.status,
         lastSeenAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      mockUsers.push(newUser);
-      return (newUser as unknown) as T;
+      mockUsers.push(user);
+      return user as T;
     }
 
     throw new Error(`Mock POST endpoint not implemented: ${endpoint}`);
   }
 
-  async put<T>(endpoint: string, body?: unknown): Promise<T> {
+  async put<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T> {
+    return this.patch(endpoint, body, opts);
+  }
+
+  async patch<T>(endpoint: string, body?: unknown, _opts?: RequestOptions): Promise<T> {
     await delay();
 
-    if (endpoint.startsWith("/users/")) {
-      const id = Number(endpoint.replace("/users/", ""));
-      const userIndex = mockUsers.findIndex((u) => u.id === id);
-      if (userIndex < 0) throw new Error("User not found");
+    if (endpoint === "/users/me") {
       const patch = body as UpdateUserRequest;
-      const updated = { ...mockUsers[userIndex], ...patch, updatedAt: new Date().toISOString() };
-      mockUsers[userIndex] = updated;
-      return (updated as unknown) as T;
+      const updated = { ...currentUser(), ...patch, updatedAt: new Date().toISOString() };
+      mockUsers[0] = updated;
+      return updated as T;
     }
 
     if (endpoint.startsWith("/messages/")) {
       const id = Number(endpoint.replace("/messages/", ""));
-      const messageIndex = mockMessages.findIndex((m) => m.id === id);
-      if (messageIndex < 0) throw new Error("Message not found");
-
-      if (endpoint.endsWith("/read")) {
-        mockMessages[messageIndex].read = true;
-        mockMessages[messageIndex].updatedAt = new Date().toISOString();
-        return (mockMessages[messageIndex] as unknown) as T;
-      }
-
-      const payload = body as { content?: string };
-      if (payload.content !== undefined) {
-        mockMessages[messageIndex].content = payload.content;
-        mockMessages[messageIndex].updatedAt = new Date().toISOString();
-      }
-      return (mockMessages[messageIndex] as unknown) as T;
+      const index = mockMessages.findIndex((item) => item.id === id);
+      if (index < 0) throw new Error("Message not found");
+      mockMessages[index] = {
+        ...mockMessages[index],
+        ...(body as Partial<Message>),
+        updatedAt: new Date().toISOString(),
+      };
+      return mockMessages[index] as T;
     }
 
-    throw new Error(`Mock PUT endpoint not implemented: ${endpoint}`);
+    if (endpoint.startsWith("/chats/")) {
+      const id = Number(endpoint.replace("/chats/", ""));
+      const index = mockChats.findIndex((item) => item.id === id);
+      if (index < 0) throw new Error("Chat not found");
+      mockChats[index] = {
+        ...mockChats[index],
+        ...(body as UpdateChatRequest),
+        updatedAt: new Date().toISOString(),
+      };
+      return mockChats[index] as T;
+    }
+
+    throw new Error(`Mock PATCH endpoint not implemented: ${endpoint}`);
   }
 
   async delete<T>(endpoint: string): Promise<T> {
     await delay();
 
-    if (endpoint.startsWith("/users/")) {
-      const id = Number(endpoint.replace("/users/", ""));
-      const index = mockUsers.findIndex((u) => u.id === id);
-      if (index >= 0) mockUsers.splice(index, 1);
-      return (undefined as unknown) as T;
-    }
-
     if (endpoint.startsWith("/messages/")) {
       const id = Number(endpoint.replace("/messages/", ""));
-      const index = mockMessages.findIndex((m) => m.id === id);
-      if (index >= 0) mockMessages.splice(index, 1);
-      return (undefined as unknown) as T;
+      const index = mockMessages.findIndex((item) => item.id === id);
+      if (index >= 0) {
+        mockMessages.splice(index, 1);
+      }
+      return undefined as T;
+    }
+
+    if (endpoint.startsWith("/chats/")) {
+      const id = Number(endpoint.replace("/chats/", ""));
+      const index = mockChats.findIndex((item) => item.id === id);
+      if (index >= 0) {
+        mockChats.splice(index, 1);
+      }
+      return undefined as T;
     }
 
     throw new Error(`Mock DELETE endpoint not implemented: ${endpoint}`);

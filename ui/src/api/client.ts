@@ -1,12 +1,11 @@
 /**
  * API Client Configuration
- * Центральное место для конфигурации HTTP-клиента
  */
 
 import { MockApiClient } from "./mock/mockClient";
 import type { IApiClient } from "./mock/mockClient";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -18,6 +17,40 @@ interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+function normalizeRelativeBase(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function joinRelativeUrl(baseUrl: string, endpoint: string): string {
+  const normalizedBase = normalizeRelativeBase(baseUrl);
+  const normalizedEndpoint = endpoint.replace(/^\/+/, "");
+  return `${normalizedBase}/${normalizedEndpoint}`;
+}
+
+export function resolveApiUrl(
+  baseUrl: string,
+  endpoint: string,
+  params?: Record<string, string | number | boolean | undefined>
+): string {
+  const isAbsoluteBase = /^https?:\/\//i.test(baseUrl);
+  const rawUrl = isAbsoluteBase
+    ? new URL(endpoint.replace(/^\/+/, ""), baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString()
+    : joinRelativeUrl(baseUrl, endpoint);
+
+  const url = isAbsoluteBase ? new URL(rawUrl) : new URL(rawUrl, window.location.origin);
+
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        url.searchParams.append(key, String(value));
+      }
+    });
+  }
+
+  return isAbsoluteBase ? url.toString() : `${url.pathname}${url.search}`;
+}
+
 class ApiClient implements IApiClient {
   private baseURL: string;
 
@@ -25,16 +58,10 @@ class ApiClient implements IApiClient {
     this.baseURL = baseURL;
   }
 
-  /**
-   * Выполнить GET запрос
-   */
   async get<T = unknown>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: "GET" });
   }
 
-  /**
-   * Выполнить POST запрос
-   */
   async post<T = unknown>(
     endpoint: string,
     body?: unknown,
@@ -47,9 +74,6 @@ class ApiClient implements IApiClient {
     });
   }
 
-  /**
-   * Выполнить PUT запрос
-   */
   async put<T = unknown>(
     endpoint: string,
     body?: unknown,
@@ -62,16 +86,22 @@ class ApiClient implements IApiClient {
     });
   }
 
-  /**
-   * Выполнить DELETE запрос
-   */
+  async patch<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
   async delete<T = unknown>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: "DELETE" });
   }
 
-  /**
-   * Основной метод для выполнения запросов
-   */
   private async request<T = unknown>(
     endpoint: string,
     options: RequestOptions = {}
@@ -97,38 +127,22 @@ class ApiClient implements IApiClient {
     }
   }
 
-  /**
-   * Построить полный URL с параметрами
-   */
-  private buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
-    const url = new URL(endpoint, this.baseURL);
-
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        // Пропустить undefined значения
-        if (value !== undefined) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-
-    return url.toString();
+  private buildUrl(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>
+  ): string {
+    return resolveApiUrl(this.baseURL, endpoint, params);
   }
 
-  /**
-   * Построить заголовки запроса
-   */
   private buildHeaders(customHeaders?: HeadersInit): HeadersInit {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    // Добавить пользовательские заголовки
     if (customHeaders && typeof customHeaders === "object" && !(customHeaders instanceof Headers)) {
       Object.assign(headers, customHeaders);
     }
 
-    // Добавить токен авторизации если он есть
     const token = localStorage.getItem("authToken");
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -138,8 +152,7 @@ class ApiClient implements IApiClient {
   }
 }
 
-// Создать глобальный экземпляр API клиента (независимо от типа)
-const useMock = import.meta.env.VITE_API_MOCK === "true";
+const useMock = import.meta.env.VITE_API_MOCK !== "false";
 export const apiClient: IApiClient = useMock ? new MockApiClient() : new ApiClient();
 
 export type { ApiResponse, RequestOptions };

@@ -1,0 +1,18 @@
+info:
+  name: get-all-chat-by-user
+  type: http
+  seq: 2
+
+http:
+  method: get
+  url: http://localhost:8888/api/chats
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+  auth: inherit
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

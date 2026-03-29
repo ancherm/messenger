@@ -1,87 +1,27 @@
-/**
- * Messages API Endpoints
- * Все методы для работы с сообщениями
- */
-
 import { apiClient } from "../client";
-import type {
-  Message,
-  CreateMessageRequest,
-  GetMessagesQuery,
-  PaginatedResponse,
-} from "../types";
+import type { Message, GetMessagesQuery, SendMessageRequest } from "../types";
 
 export const messagesApi = {
-  /**
-   * Получить сообщения с конкретным пользователем
-   */
-  getConversation(
-    userId: number,
-    params?: GetMessagesQuery
-  ): Promise<PaginatedResponse<Message>> {
-    return apiClient.get(`/messages/conversation/${userId}`, { params });
-  },
-
-  /**
-   * Получить все сообщения пользователя
-   */
-  getAll(params?: GetMessagesQuery): Promise<PaginatedResponse<Message>> {
-    return apiClient.get("/messages", { params });
-  },
-
-  /**
-   * Получить сообщение по ID
-   */
   getById(id: number): Promise<Message> {
     return apiClient.get(`/messages/${id}`);
   },
 
-  /**
-   * Отправить сообщение
-   */
-  send(data: CreateMessageRequest): Promise<Message> {
-    return apiClient.post("/messages", data);
+  getChatHistory(chatId: number, params?: GetMessagesQuery): Promise<Message[]> {
+    return apiClient.get(`/chats/${chatId}/messages`, { params });
   },
 
-  /**
-   * Редактировать сообщение
-   */
+  send(chatId: number, data: SendMessageRequest): Promise<Message> {
+    return apiClient.post(`/chats/${chatId}/messages`, {
+      contentType: "TEXT",
+      ...data,
+    });
+  },
+
   update(id: number, content: string): Promise<Message> {
-    return apiClient.put(`/messages/${id}`, { content });
+    return apiClient.patch(`/messages/${id}`, { content });
   },
 
-  /**
-   * Удалить сообщение
-   */
   delete(id: number): Promise<void> {
     return apiClient.delete(`/messages/${id}`);
-  },
-
-  /**
-   * Отметить сообщение как прочитанное
-   */
-  markAsRead(id: number): Promise<Message> {
-    return apiClient.put(`/messages/${id}/read`, {});
-  },
-
-  /**
-   * Отметить все сообщения как прочитанные
-   */
-  markAllAsRead(userId: number): Promise<void> {
-    return apiClient.put(`/messages/user/${userId}/read-all`, {});
-  },
-
-  /**
-   * Получить непрочитанные сообщения
-   */
-  getUnread(): Promise<PaginatedResponse<Message>> {
-    return apiClient.get("/messages/unread");
-  },
-
-  /**
-   * Получить количество непрочитанных сообщений
-   */
-  getUnreadCount(): Promise<{ count: number }> {
-    return apiClient.get("/messages/unread/count");
   },
 };

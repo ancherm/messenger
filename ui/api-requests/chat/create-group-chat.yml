@@ -1,0 +1,30 @@
+info:
+  name: create-group-chat
+  type: http
+  seq: 3
+
+http:
+  method: post
+  url: http://localhost:8888/api/chats
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "type": "GROUP",
+        "title": "Тестовая группа",
+        "participantIds": [
+          2
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

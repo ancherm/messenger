@@ -1,0 +1,33 @@
+info:
+  name: login-user
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: http://localhost:8888/auth/login
+  body:
+    type: json
+    data: |-
+      {
+        "username": "ivanov2",
+        "password": "password"
+      }
+  auth: inherit
+
+runtime:
+  actions:
+    - type: set-variable
+      phase: after-response
+      selector:
+        expression: res.body.token
+        method: jsonq
+      variable:
+        name: tokenLogin
+        scope: runtime
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

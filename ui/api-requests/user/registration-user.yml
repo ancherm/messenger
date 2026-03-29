@@ -1,0 +1,23 @@
+info:
+  name: registration-user
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: http://localhost:8888/auth/register
+  body:
+    type: json
+    data: |-
+      {
+        "username": "ivanov2",
+        "email": "ivanov2@gmail.com",
+        "password": "password"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

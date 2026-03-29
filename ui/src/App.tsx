@@ -9,6 +9,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<ChatListPage />} />
         <Route path="/profile" element={<UserProfilePage />} />
+        <Route path="/users/:id/profile" element={<UserProfilePage readOnly />} />
       </Routes>
     </BrowserRouter>
   );

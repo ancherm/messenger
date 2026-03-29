@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Avatar,
   Typography,
@@ -17,135 +17,205 @@ import PersonIcon from "@mui/icons-material/Person";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import { usersApi, type UpdateUserRequest, type UserProfile } from "../api";
 
-// ─── Константы темы ────────────────────────────────────────────
 const ACCENT = "#3b82f6";
 const TEXT_MUTED = "#8f9fb8";
 const TEXT_PRIMARY = "#e2e8f0";
 const CARD_BACKGROUND = "rgba(11, 27, 56, 0.92)";
 
-// ─── Типы ──────────────────────────────────────────────────────
-type User = {
-  id: number;
-  username: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  avatarUrl?: string;
-  status?: string;
-  lastSeenAt?: string;
-  createdAt?: string;
-  active?: boolean;
-};
-
-// ─── Конфиги секций ────────────────────────────────────────────
-
-// ─── Главная страница ──────────────────────────────────────────
 type UserProfilePageProps = {
   onClose?: () => void;
+  userId?: number;
+  readOnly?: boolean;
 };
 
-export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) {
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+
+export default function UserProfilePage({
+  onClose,
+  userId,
+  readOnly = false,
+}: UserProfilePageProps = {}) {
   const navigate = useNavigate();
+  const params = useParams<{ id: string }>();
   const close = onClose ?? (() => navigate("/"));
-  const [user, setUser]       = useState<User | null>(null);
-  const [form, setForm]       = useState<Partial<User>>({});
+  const resolvedUserId = userId ?? (params.id ? Number(params.id) : undefined);
+  const isReadOnly = readOnly || resolvedUserId !== undefined;
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [form, setForm] = useState<Partial<UserProfile>>({});
   const [editing, setEditing] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const scheduleMockData = window.setTimeout(() => {
-      const mockUser: User = {
-        id: 1,
-        username: "johndoe",
-        email: "john@example.com",
-        firstName: "John",
-        lastName: "Doe",
-        phone: "+1234567890",
-        avatarUrl: "https://i.pravatar.cc/150?img=3",
-        status: "ONLINE",
-        lastSeenAt: new Date().toISOString(),
-        createdAt: new Date(Date.now() - 86400 * 1000 * 90).toISOString(),
-        active: true,
-      };
-      setUser(mockUser);
-      setForm(mockUser);
-    }, 0);
+    let active = true;
 
-    return () => window.clearTimeout(scheduleMockData);
-  }, []);
+    const loadUser = async () => {
+      setLoading(true);
+      setError(null);
 
-  useEffect(() => {
-    const resetTimer = () => {
-      setIsOnline(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(() => {
-        setIsOnline(false);
-        setUser((prev) => (prev ? { ...prev, lastSeenAt: new Date().toISOString() } : prev));
-      }, 60_000);
+      try {
+        const profile = resolvedUserId
+          ? await usersApi.getById(resolvedUserId)
+          : await usersApi.getMe();
+
+        if (!active) {
+          return;
+        }
+
+        setUser(profile);
+        setForm(profile);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+
+        setError(loadError instanceof Error ? loadError.message : "Failed to load profile");
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
     };
-    const events = ["mousemove", "keydown", "click"];
-    events.forEach((e) => window.addEventListener(e, resetTimer));
-    resetTimer();
+
+    void loadUser();
+
     return () => {
-      events.forEach((e) => window.removeEventListener(e, resetTimer));
-      if (timerRef.current) clearTimeout(timerRef.current);
+      active = false;
     };
-  }, []);
+  }, [resolvedUserId]);
+
+  const isOnline = useMemo(() => {
+    if (!user?.lastSeenAt) {
+      return false;
+    }
+
+    return Date.now() - new Date(user.lastSeenAt).getTime() < ONLINE_THRESHOLD_MS;
+  }, [user?.lastSeenAt]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const avatarUrl = reader.result as string;
-      setForm((prev) => ({ ...prev, avatarUrl }));
-      setUser((prev) => (prev ? { ...prev, avatarUrl } : prev));
-    };
-    reader.readAsDataURL(file);
+    if (!file || !user || isReadOnly) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const updatedUser = await usersApi.updateAvatar(user.id, file);
+      setUser(updatedUser);
+      setForm(updatedUser);
+    } catch (avatarError) {
+      setError(avatarError instanceof Error ? avatarError.message : "Failed to update avatar");
+    } finally {
+      setSaving(false);
+      e.target.value = "";
+    }
   };
 
-  const handleSave = () => {
-    setUser((prev) => (prev ? { ...prev, ...(form as User) } : prev));
-    setEditing(false);
+  const handleSave = async () => {
+    const payload: UpdateUserRequest = {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      phone: form.phone,
+      bio: form.bio,
+      avatarUrl: form.avatarUrl,
+      status: form.status,
+    };
+
+    try {
+      setSaving(true);
+      setError(null);
+      const updatedUser = await usersApi.updateMe(payload);
+      setUser(updatedUser);
+      setForm(updatedUser);
+      setEditing(false);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
     setForm(user ?? {});
     setEditing(false);
+    setError(null);
   };
 
   const formatLastSeen = (dateString?: string) => {
     if (!dateString) return "—";
+
     const date = new Date(dateString);
-    const diff = new Date().getTime() - date.getTime();
-    const DAY  = 86_400_000;
-    const YEAR = DAY * 365;
-    if (diff < DAY)  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    if (diff < YEAR) return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+    const diff = Date.now() - date.getTime();
+    const day = 86_400_000;
+    const year = day * 365;
+
+    if (diff < day) {
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    if (diff < year) {
+      return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+    }
+
     return date.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "2-digit" });
   };
 
-  if (!user)
+  if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <Typography color={TEXT_MUTED}>Loading…</Typography>
+        <Typography color={TEXT_MUTED}>Loading...</Typography>
       </Box>
     );
+  }
 
+  if (!user) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" px={3}>
+        <Typography color={TEXT_MUTED}>{error ?? "Profile not found"}</Typography>
+      </Box>
+    );
+  }
+
+  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Unnamed user";
   const infoRows = [
-    { icon: <PhoneIcon fontSize="small" />, label: "Phone",     value: (editing ? form.phone : user.phone) || "—" },
-    { icon: <AccountCircleIcon fontSize="small" />, label: "Username",  value: (editing ? form.username : user.username) || "—" },
-    { icon: <EmailIcon fontSize="small" />, label: "Email",     value: (editing ? form.email : user.email) || "—" },
-    { icon: <PersonIcon fontSize="small" />, label: "Full Name", value: ((editing ? form.firstName : user.firstName) ?? "") + " " + ((editing ? form.lastName : user.lastName) ?? "") || "—" },
+    {
+      icon: <PhoneIcon fontSize="small" />,
+      label: "Phone",
+      value: (editing ? form.phone : user.phone) || "—",
+    },
+    {
+      icon: <AccountCircleIcon fontSize="small" />,
+      label: "Username",
+      value: `@${(editing ? form.username : user.username) || "unknown"}`,
+    },
+    {
+      icon: <EmailIcon fontSize="small" />,
+      label: "Email",
+      value: (editing ? form.email : user.email) || "—",
+    },
+    {
+      icon: <PersonIcon fontSize="small" />,
+      label: "Full Name",
+      value:
+        [editing ? form.firstName : user.firstName, editing ? form.lastName : user.lastName]
+          .filter(Boolean)
+          .join(" ") || "—",
+    },
+    {
+      icon: <InfoOutlinedIcon fontSize="small" />,
+      label: "Bio",
+      value: (editing ? form.bio : user.bio) || "—",
+    },
   ];
 
   return (
@@ -188,13 +258,10 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
 
         <Box sx={{ textAlign: "center", p: 3, pt: 8 }}>
           <Box sx={{ position: "relative", width: 110, height: 110, mx: "auto", mb: 1 }}>
-            <Avatar
-              src={form.avatarUrl ?? user.avatarUrl}
-              sx={{ width: 110, height: 110 }}
-            >
+            <Avatar src={form.avatarUrl ?? user.avatarUrl} sx={{ width: 110, height: 110 }}>
               {user.username?.[0]?.toUpperCase() ?? "U"}
             </Avatar>
-            {editing && (
+            {!isReadOnly && editing && (
               <IconButton
                 onClick={() => fileInputRef.current?.click()}
                 sx={{
@@ -212,16 +279,18 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
                 <AccountCircleIcon fontSize="small" />
               </IconButton>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handleAvatarChange}
-            />
+            {!isReadOnly && (
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleAvatarChange}
+              />
+            )}
           </Box>
           <Typography variant="h5" sx={{ color: TEXT_PRIMARY, fontWeight: 800, mb: 0.5 }}>
-            {user.firstName} {user.lastName}
+            {fullName}
           </Typography>
           <Typography variant="body2" sx={{ color: TEXT_MUTED, mb: 1.5 }}>
             @{user.username}
@@ -232,18 +301,32 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
             sx={{
               bgcolor: isOnline ? "rgba(0,230,118,0.13)" : "rgba(255,255,255,0.06)",
               color: isOnline ? "#00e676" : TEXT_MUTED,
-              border: isOnline ? "1px solid rgba(0,230,118,0.35)" : "1px solid rgba(255,255,255,0.11)",
+              border: isOnline
+                ? "1px solid rgba(0,230,118,0.35)"
+                : "1px solid rgba(255,255,255,0.11)",
               fontWeight: 700,
               fontSize: "0.68rem",
               minWidth: 148,
             }}
           />
+
           <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
-            {editing ? (
+            {isReadOnly ? (
+              <Chip
+                label="Read only"
+                sx={{
+                  bgcolor: "rgba(59,130,246,0.12)",
+                  color: "#93c5fd",
+                  border: "1px solid rgba(59,130,246,0.28)",
+                  fontWeight: 700,
+                }}
+              />
+            ) : editing ? (
               <>
                 <Button
                   variant="outlined"
                   onClick={handleCancel}
+                  disabled={saving}
                   sx={{ color: TEXT_MUTED, borderColor: "rgba(255,255,255,0.2)" }}
                 >
                   Cancel
@@ -251,27 +334,32 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  sx={{ bgcolor: ACCENT, color: "#fff", '&:hover': { bgcolor: '#2563eb' } }}
+                  disabled={saving}
+                  sx={{ bgcolor: ACCENT, color: "#fff", "&:hover": { bgcolor: "#2563eb" } }}
                 >
-                  Save
+                  {saving ? "Saving..." : "Save"}
                 </Button>
               </>
             ) : (
               <Button
                 variant="contained"
                 onClick={() => setEditing(true)}
-                sx={{ bgcolor: ACCENT, color: "#fff", '&:hover': { bgcolor: '#2563eb' } }}
+                sx={{ bgcolor: ACCENT, color: "#fff", "&:hover": { bgcolor: "#2563eb" } }}
               >
                 Edit
               </Button>
             )}
           </Box>
+
+          {error && (
+            <Typography sx={{ mt: 1.5, color: "#fca5a5", fontSize: "0.85rem" }}>{error}</Typography>
+          )}
         </Box>
 
         <Divider sx={{ borderColor: "rgba(255,255,255,0.15)", mb: 1 }} />
 
         <Box sx={{ px: 2, py: 1 }}>
-          {editing ? (
+          {!isReadOnly && editing ? (
             <Box display="flex" flexDirection="column" gap={2}>
               <TextField
                 label="First Name"
@@ -309,6 +397,17 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
                 fullWidth
                 InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
               />
+              <TextField
+                label="Bio"
+                name="bio"
+                value={form.bio ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                multiline
+                minRows={3}
+                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+              />
             </Box>
           ) : (
             infoRows.map((row) => (
@@ -318,6 +417,7 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  gap: 2,
                   py: 1,
                   px: 1.5,
                   borderBottom: "1px solid rgba(255,255,255,0.07)",
@@ -325,11 +425,27 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                   <Box sx={{ color: ACCENT }}>{row.icon}</Box>
-                  <Typography sx={{ color: TEXT_MUTED, fontSize: "0.76rem", textTransform: "uppercase", fontWeight: 700 }}>
+                  <Typography
+                    sx={{
+                      color: TEXT_MUTED,
+                      fontSize: "0.76rem",
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                    }}
+                  >
                     {row.label}
                   </Typography>
                 </Box>
-                <Typography sx={{ color: TEXT_PRIMARY, fontWeight: 600, fontSize: "0.95rem" }}>
+                <Typography
+                  sx={{
+                    color: TEXT_PRIMARY,
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                    textAlign: "right",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {row.value}
                 </Typography>
               </Box>
@@ -340,5 +456,3 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
     </Box>
   );
 }
-
-// ─── Вспомогательные компоненты ────────────────────────────────
