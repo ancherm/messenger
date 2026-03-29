@@ -16,7 +16,7 @@ http:
     data: |-
       {
         "type": "PRIVATE",
-        "peerUserId": 2
+        "peerUserId": 1
       }
   auth: inherit
 

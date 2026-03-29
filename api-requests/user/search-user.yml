@@ -5,13 +5,13 @@ info:
 
 http:
   method: GET
-  url: http://localhost:8888/users?query=user&page=0&size=10&sort=username,asc
+  url: http://localhost:8888/api/users?query=iva&page=0&size=10&sort=username,asc
   headers:
     - name: Authorization
       value: Bearer {{tokenLogin}}
   params:
     - name: query
-      value: user
+      value: iva
       type: query
     - name: page
       value: "0"
