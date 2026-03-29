@@ -16,6 +16,40 @@ interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+function normalizeRelativeBase(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function joinRelativeUrl(baseUrl: string, endpoint: string): string {
+  const normalizedBase = normalizeRelativeBase(baseUrl);
+  const normalizedEndpoint = endpoint.replace(/^\/+/, "");
+  return `${normalizedBase}/${normalizedEndpoint}`;
+}
+
+export function resolveApiUrl(
+  baseUrl: string,
+  endpoint: string,
+  params?: Record<string, string | number | boolean | undefined>
+): string {
+  const isAbsoluteBase = /^https?:\/\//i.test(baseUrl);
+  const rawUrl = isAbsoluteBase
+    ? new URL(endpoint.replace(/^\/+/, ""), baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString()
+    : joinRelativeUrl(baseUrl, endpoint);
+
+  const url = isAbsoluteBase ? new URL(rawUrl) : new URL(rawUrl, window.location.origin);
+
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        url.searchParams.append(key, String(value));
+      }
+    });
+  }
+
+  return isAbsoluteBase ? url.toString() : `${url.pathname}${url.search}`;
+}
+
 class ApiClient implements IApiClient {
   private baseURL: string;
 
@@ -63,6 +97,18 @@ class ApiClient implements IApiClient {
     });
   }
 
+  async patch<T = unknown>(
+    endpoint: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
   async delete<T = unknown>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: "DELETE" });
   }
@@ -105,6 +151,15 @@ class ApiClient implements IApiClient {
     endpoint: string,
     params?: Record<string, string | number | boolean | undefined>
   ): string {
+    return resolveApiUrl(this.baseURL, endpoint, params);
+  }
+
+  private buildHeaders(customHeaders?: HeadersInit): HeadersInit {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (customHeaders && typeof customHeaders === "object" && !(customHeaders instanceof Headers)) {
     const url = new URL(endpoint, this.resolveBaseUrl());
 
     if (params) {
@@ -174,7 +229,7 @@ class ApiClient implements IApiClient {
   }
 }
 
-const useMock = import.meta.env.VITE_API_MOCK === "true";
+const useMock = import.meta.env.VITE_API_MOCK !== "false";
 export const apiClient: IApiClient = useMock ? new MockApiClient() : new ApiClient();
 
 export type { ApiResponse, RequestOptions };

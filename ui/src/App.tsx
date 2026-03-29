@@ -27,6 +27,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<ChatListPage />} />
+        <Route path="/profile" element={<UserProfilePage />} />
+        <Route path="/users/:id/profile" element={<UserProfilePage readOnly />} />
         <Route
           path="/auth"
           element={

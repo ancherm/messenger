@@ -1,7 +1,6 @@
-/**
- * Простые мок-данные
- */
-import type { UserProfile, Message } from "../types";
+import type { Chat, Message, UserProfile } from "../types";
+
+const now = Date.now();
 
 export const mockUsers: UserProfile[] = [
   {
@@ -13,9 +12,52 @@ export const mockUsers: UserProfile[] = [
     phone: "+1234567890",
     avatarUrl: "https://i.pravatar.cc/150?img=3",
     bio: "Sample bio",
-    lastSeenAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    status: "ONLINE",
+    lastSeenAt: new Date(now).toISOString(),
+    createdAt: new Date(now).toISOString(),
+    updatedAt: new Date(now).toISOString(),
+  },
+  {
+    id: 2,
+    username: "alice",
+    email: "alice@example.com",
+    firstName: "Alice",
+    lastName: "Johnson",
+    phone: "+1555000002",
+    avatarUrl: "https://i.pravatar.cc/150?img=5",
+    bio: "Люблю длинные прогулки и голосовые сообщения.",
+    status: "ONLINE",
+    lastSeenAt: new Date(now).toISOString(),
+    createdAt: new Date(now).toISOString(),
+    updatedAt: new Date(now).toISOString(),
+  },
+  {
+    id: 3,
+    username: "bob",
+    email: "bob@example.com",
+    firstName: "Bob",
+    lastName: "Miller",
+    phone: "+1555000003",
+    avatarUrl: "https://i.pravatar.cc/150?img=8",
+    bio: "Смотрю на баги как на квесты.",
+    status: "AWAY",
+    lastSeenAt: new Date(now - 15 * 60 * 1000).toISOString(),
+    createdAt: new Date(now).toISOString(),
+    updatedAt: new Date(now).toISOString(),
+  },
+  {
+    id: 4,
+    username: "carol",
+    email: "carol@example.com",
+    firstName: "Carol",
+    lastName: "Smith",
+    phone: "+1555000004",
+    avatarUrl: "https://i.pravatar.cc/150?img=10",
+    bio: "Всегда за кофе и быстрые созвоны.",
+    status: "OFFLINE",
+    lastSeenAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(now).toISOString(),
+    updatedAt: new Date(now).toISOString(),
   },
   {
     id: 2,
@@ -35,20 +77,65 @@ export const mockUsers: UserProfile[] = [
 export const mockMessages: Message[] = [
   {
     id: 1,
-    senderId: 1,
-    receiverId: 2,
-    content: "Привет!",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    read: false,
+    chatId: 1,
+    senderId: 2,
+    receiverId: 1,
+    content: "Как дела?",
+    contentType: "TEXT",
+    createdAt: new Date(now - 50 * 60 * 1000).toISOString(),
+    updatedAt: new Date(now - 50 * 60 * 1000).toISOString(),
+    read: true,
   },
   {
     id: 2,
-    senderId: 2,
+    chatId: 2,
+    senderId: 3,
     receiverId: 1,
-    content: "Здорово, как дела?",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    content: "Видишь экран?",
+    contentType: "TEXT",
+    createdAt: new Date(now - 20 * 60 * 1000).toISOString(),
+    updatedAt: new Date(now - 20 * 60 * 1000).toISOString(),
     read: false,
+  },
+  {
+    id: 3,
+    chatId: 3,
+    senderId: 4,
+    receiverId: 1,
+    content: "Пойдем на кофе",
+    contentType: "TEXT",
+    createdAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+    read: false,
+  },
+];
+
+export const mockChats: Chat[] = [
+  {
+    id: 1,
+    type: "PRIVATE",
+    peerUserId: 2,
+    participantIds: [1, 2],
+    lastMessage: mockMessages[0],
+    updatedAt: mockMessages[0].updatedAt,
+    createdAt: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 2,
+    type: "PRIVATE",
+    peerUserId: 3,
+    participantIds: [1, 3],
+    lastMessage: mockMessages[1],
+    updatedAt: mockMessages[1].updatedAt,
+    createdAt: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 3,
+    type: "PRIVATE",
+    peerUserId: 4,
+    participantIds: [1, 4],
+    lastMessage: mockMessages[2],
+    updatedAt: mockMessages[2].updatedAt,
+    createdAt: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ];

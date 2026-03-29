@@ -1,9 +1,10 @@
 /**
  * API Types
- * Определения типов для API запросов и ответов
  */
 
-// ─── User Types ────────────────────────────────────────────────
+export type ChatType = "PRIVATE" | "GROUP" | "CHANNEL";
+export type MessageContentType = "TEXT" | "IMAGE" | "FILE";
+export type UserStatus = "ONLINE" | "OFFLINE" | "AWAY";
 
 export interface UserProfile {
   id: number;
@@ -14,6 +15,7 @@ export interface UserProfile {
   phone?: string;
   avatarUrl?: string;
   bio?: string;
+  status?: UserStatus | string;
   lastSeenAt?: string;
   status?: string;
   active?: boolean;
@@ -21,12 +23,24 @@ export interface UserProfile {
   updatedAt?: string;
 }
 
-export interface CreateUserRequest {
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+}
+
+export interface RegisterRequest {
   username: string;
   email: string;
+  password: string;
+}
+
+export interface CreateUserRequest extends RegisterRequest {
   firstName?: string;
   lastName?: string;
-  password: string;
 }
 
 export interface UpdateUserRequest {
@@ -35,6 +49,7 @@ export interface UpdateUserRequest {
   phone?: string;
   bio?: string;
   avatarUrl?: string;
+  status?: UserStatus | string;
 }
 
 export interface LoginRequest {
@@ -55,40 +70,66 @@ export interface AuthResponse extends AuthTokens {
 
 export interface Message {
   id: number;
+  chatId?: number;
   senderId: number;
-  receiverId: number;
+  receiverId?: number;
   content: string;
+  contentType?: MessageContentType;
+  replyToMessageId?: number;
+  attachmentUrl?: string;
+  attachmentName?: string;
   createdAt: string;
   updatedAt: string;
   read: boolean;
 }
 
-export interface CreateMessageRequest {
-  receiverId: number;
+export interface SendMessageRequest {
   content: string;
+  contentType?: MessageContentType;
+  replyToMessageId?: number;
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 export interface GetMessagesQuery extends Record<string, string | number | boolean | undefined> {
-  userId?: number;
   limit?: number;
-  offset?: number;
+  before?: number;
+  search?: string;
 }
 
-// ─── Chat Types ────────────────────────────────────────────────
+export interface ChatParticipant {
+  id: number;
+  userId: number;
+  role?: string;
+  user?: UserProfile;
+}
 
 export interface Chat {
   id: number;
-  participantIds: number[];
+  chatId?: number;
+  type: ChatType;
+  title?: string;
+  description?: string;
+  participantIds?: number[];
+  participants?: ChatParticipant[];
+  peerUserId?: number;
   lastMessage?: Message;
   updatedAt: string;
   createdAt: string;
 }
 
 export interface CreateChatRequest {
-  participantIds: number[];
+  type: ChatType;
+  title?: string;
+  description?: string;
+  peerUserId?: number;
+  participantIds?: number[];
 }
 
-// ─── API Response Types ────────────────────────────────────────
+export interface UpdateChatRequest {
+  title?: string;
+  description?: string;
+}
 
 export interface PaginatedResponse<T> {
   data: T[];
