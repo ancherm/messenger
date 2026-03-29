@@ -6,6 +6,8 @@
 import type { RequestOptions } from "../client";
 import type {
   UserProfile,
+  CreateUserRequest,
+  LoginRequest,
   UpdateUserRequest,
   CreateMessageRequest,
   Message,
@@ -19,6 +21,7 @@ export interface IApiClient {
   get<T>(endpoint: string, opts?: RequestOptions): Promise<T>;
   post<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T>;
   put<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T>;
+  patch<T>(endpoint: string, body?: unknown, opts?: RequestOptions): Promise<T>;
   delete<T>(endpoint: string, opts?: RequestOptions): Promise<T>;
 }
 
@@ -26,12 +29,15 @@ export class MockApiClient implements IApiClient {
   async get<T>(endpoint: string, opts?: RequestOptions): Promise<T> {
     await delay();
 
-    if (endpoint === "/users/me") {
-      return (mockUsers[0] as unknown) as T;
+    if (endpoint === "/users/me" || endpoint === "/api/users/me") {
+      const token = localStorage.getItem("authToken");
+      const activeUserId = Number(token?.replace("mock-token-", ""));
+      const activeUser = mockUsers.find((user) => user.id === activeUserId) ?? mockUsers[0];
+      return (activeUser as unknown) as T;
     }
 
-    if (endpoint.startsWith("/users/")) {
-      const id = Number(endpoint.replace("/users/", ""));
+    if (endpoint.startsWith("/users/") || endpoint.startsWith("/api/users/")) {
+      const id = Number(endpoint.replace("/api/users/", "").replace("/users/", ""));
       const user = mockUsers.find((u) => u.id === id);
       if (user) return (user as unknown) as T;
       throw new Error("User not found");
@@ -70,6 +76,26 @@ export class MockApiClient implements IApiClient {
   async post<T>(endpoint: string, body?: unknown): Promise<T> {
     await delay();
 
+    if (endpoint === "/auth/login") {
+      const payload = body as LoginRequest & { username?: string };
+      const identifier = (payload.emailOrUsername ?? payload.username ?? "").trim().toLowerCase();
+      const user = mockUsers.find(
+        (item) =>
+          item.username.toLowerCase() === identifier ||
+          (item.email?.toLowerCase() ?? "") === identifier
+      );
+
+      if (!user || payload.password.length < 4) {
+        throw new Error("Invalid credentials");
+      }
+
+      return ({
+        token: `mock-token-${user.id}`,
+        refreshToken: `mock-refresh-${user.id}`,
+        user,
+      } as unknown) as T;
+    }
+
     if (endpoint === "/messages") {
       const payload = body as CreateMessageRequest;
       const newMessage: Message = {
@@ -85,17 +111,14 @@ export class MockApiClient implements IApiClient {
       return (newMessage as unknown) as T;
     }
 
-    if (endpoint === "/users") {
-      const payload = body as Partial<UserProfile>;
+    if (endpoint === "/users" || endpoint === "/auth/register") {
+      const payload = body as CreateUserRequest;
       const newUser: UserProfile = {
         id: mockUsers.length + 1,
         username: payload.username || "newuser",
         email: payload.email || "new@example.com",
         firstName: payload.firstName,
         lastName: payload.lastName,
-        phone: payload.phone,
-        avatarUrl: payload.avatarUrl,
-        bio: payload.bio,
         lastSeenAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -108,10 +131,23 @@ export class MockApiClient implements IApiClient {
   }
 
   async put<T>(endpoint: string, body?: unknown): Promise<T> {
+    return this.patch(endpoint, body);
+  }
+
+  async patch<T>(endpoint: string, body?: unknown): Promise<T> {
     await delay();
 
-    if (endpoint.startsWith("/users/")) {
-      const id = Number(endpoint.replace("/users/", ""));
+    if (
+      endpoint.startsWith("/users/") ||
+      endpoint.startsWith("/api/users/") ||
+      endpoint === "/api/users/me"
+    ) {
+      const token = localStorage.getItem("authToken");
+      const activeUserId = Number(token?.replace("mock-token-", ""));
+      const id =
+        endpoint === "/api/users/me"
+          ? activeUserId
+          : Number(endpoint.replace("/api/users/", "").replace("/users/", ""));
       const userIndex = mockUsers.findIndex((u) => u.id === id);
       if (userIndex < 0) throw new Error("User not found");
       const patch = body as UpdateUserRequest;
@@ -139,7 +175,7 @@ export class MockApiClient implements IApiClient {
       return (mockMessages[messageIndex] as unknown) as T;
     }
 
-    throw new Error(`Mock PUT endpoint not implemented: ${endpoint}`);
+    throw new Error(`Mock PATCH endpoint not implemented: ${endpoint}`);
   }
 
   async delete<T>(endpoint: string): Promise<T> {

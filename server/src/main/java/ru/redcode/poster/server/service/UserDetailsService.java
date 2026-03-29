@@ -3,7 +3,6 @@ package ru.redcode.poster.server.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import ru.redcode.poster.server.model.CustomUserDetails;
 import ru.redcode.poster.server.model.User;
@@ -19,8 +18,9 @@ public class UserDetailsService implements org.springframework.security.core.use
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+        String login = username == null ? "" : username.trim();
+        User user = userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(login, login)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with login: " + login));
 
         return new CustomUserDetails(
                 user.getId(),

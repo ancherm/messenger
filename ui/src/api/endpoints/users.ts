@@ -1,103 +1,75 @@
-/**
- * Users API Endpoints
- * Все методы для работы с пользователями
- */
+import { API_BASE_URL, apiClient } from "../client";
+import type { PaginatedResponse, UpdateUserRequest, UserProfile } from "../types";
 
-import { apiClient } from "../client";
-import type {
-  UserProfile,
-  CreateUserRequest,
-  UpdateUserRequest,
-} from "../types";
+type SearchResponse = PaginatedResponse<UserProfile> | { content: UserProfile[] };
 
 export const usersApi = {
-  /**
-   * Получить профиль текущего пользователя
-   */
   getMe(): Promise<UserProfile> {
-    return apiClient.get("/users/me");
+    return apiClient.get("/api/users/me");
   },
 
-  /**
-   * Получить профиль по ID
-   */
   getById(id: number): Promise<UserProfile> {
-    return apiClient.get(`/users/${id}`);
+    return apiClient.get(`/api/users/${id}`);
   },
 
-  /**
-   * Получить пользователя по username
-   */
-  getByUsername(username: string): Promise<UserProfile> {
-    return apiClient.get("/users/search", {
-      params: { username },
+  async getByUsername(username: string): Promise<UserProfile> {
+    const users = await this.search(username);
+    const match = users.find(
+      (user) => user.username.toLowerCase() === username.trim().toLowerCase()
+    );
+
+    if (!match) {
+      throw new Error("User not found");
+    }
+
+    return match;
+  },
+
+  async search(query: string, limit = 10): Promise<UserProfile[]> {
+    const response = await apiClient.get<SearchResponse>("/api/users", {
+      params: { query, size: limit },
     });
+
+    return "content" in response ? response.content : response.data;
   },
 
-  /**
-   * Поиск пользователей
-   */
-  search(query: string, limit = 10): Promise<UserProfile[]> {
-    return apiClient.get("/users/search", {
-      params: { q: query, limit },
-    });
-  },
-
-  /**
-   * Создать нового пользователя
-   */
-  create(data: CreateUserRequest): Promise<UserProfile> {
-    return apiClient.post("/users", data);
-  },
-
-  /**
-   * Обновить профиль пользователя
-   */
   update(id: number, data: UpdateUserRequest): Promise<UserProfile> {
-    return apiClient.put(`/users/${id}`, data);
+    void id;
+    return apiClient.patch("/api/users/me", data);
   },
 
-  /**
-   * Обновить аватар пользователя
-   */
-  updateAvatar(id: number, file: File): Promise<UserProfile> {
+  async updateAvatar(id: number, file: File): Promise<UserProfile> {
     const formData = new FormData();
     formData.append("avatar", file);
-    
-    return fetch(`${import.meta.env.VITE_API_URL || "http://localhost:3000/api"}/users/${id}/avatar`, {
+
+    const response = await fetch(`${API_BASE_URL}/api/users/${id}/avatar`, {
       method: "PUT",
       body: formData,
       headers: {
         Authorization: `Bearer ${localStorage.getItem("authToken")}`,
       },
-    }).then(res => res.json());
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<UserProfile>;
   },
 
-  /**
-   * Удалить пользователя
-   */
   delete(id: number): Promise<void> {
-    return apiClient.delete(`/users/${id}`);
+    return apiClient.delete(`/api/users/${id}`);
   },
 
-  /**
-   * Получить список контактов пользователя
-   */
   getContacts(id: number): Promise<UserProfile[]> {
-    return apiClient.get(`/users/${id}/contacts`);
+    return apiClient.get(`/api/users/${id}/contacts`);
   },
 
-  /**
-   * Добавить контакт
-   */
   addContact(userId: number, contactId: number): Promise<UserProfile> {
-    return apiClient.post(`/users/${userId}/contacts/${contactId}`, {});
+    return apiClient.post(`/api/users/${userId}/contacts/${contactId}`, {});
   },
 
-  /**
-   * Удалить контакт
-   */
   removeContact(userId: number, contactId: number): Promise<void> {
-    return apiClient.delete(`/users/${userId}/contacts/${contactId}`);
+    return apiClient.delete(`/api/users/${userId}/contacts/${contactId}`);
   },
 };

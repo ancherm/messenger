@@ -17,6 +17,19 @@ export const mockUsers: UserProfile[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
+  {
+    id: 2,
+    username: "alice",
+    email: "alice@example.com",
+    firstName: "Alice",
+    lastName: "Brown",
+    phone: "+1234567000",
+    avatarUrl: "https://i.pravatar.cc/150?img=5",
+    bio: "Frontend engineer",
+    lastSeenAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 export const mockMessages: Message[] = [

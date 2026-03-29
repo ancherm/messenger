@@ -1,151 +1,187 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  Alert,
   Avatar,
-  Typography,
   Box,
-  Divider,
-  Chip,
-  IconButton,
   Button,
+  CircularProgress,
+  Divider,
+  IconButton,
   TextField,
+  Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PersonIcon from "@mui/icons-material/Person";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import type { UpdateUserRequest, UserProfile } from "../api";
+import { usersApi } from "../api";
+import { clearAuthSession, setStoredUser } from "../auth/storage";
 
-// ─── Константы темы ────────────────────────────────────────────
 const ACCENT = "#3b82f6";
 const TEXT_MUTED = "#8f9fb8";
 const TEXT_PRIMARY = "#e2e8f0";
 const CARD_BACKGROUND = "rgba(11, 27, 56, 0.92)";
 
-// ─── Типы ──────────────────────────────────────────────────────
-type User = {
-  id: number;
-  username: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  avatarUrl?: string;
-  status?: string;
-  lastSeenAt?: string;
-  createdAt?: string;
-  active?: boolean;
-};
-
-// ─── Конфиги секций ────────────────────────────────────────────
-
-// ─── Главная страница ──────────────────────────────────────────
 type UserProfilePageProps = {
   onClose?: () => void;
 };
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Не удалось выполнить запрос";
+}
+
 export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) {
   const navigate = useNavigate();
   const close = onClose ?? (() => navigate("/"));
-  const [user, setUser]       = useState<User | null>(null);
-  const [form, setForm]       = useState<Partial<User>>({});
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [form, setForm] = useState<UpdateUserRequest>({});
   const [editing, setEditing] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const scheduleMockData = window.setTimeout(() => {
-      const mockUser: User = {
-        id: 1,
-        username: "johndoe",
-        email: "john@example.com",
-        firstName: "John",
-        lastName: "Doe",
-        phone: "+1234567890",
-        avatarUrl: "https://i.pravatar.cc/150?img=3",
-        status: "ONLINE",
-        lastSeenAt: new Date().toISOString(),
-        createdAt: new Date(Date.now() - 86400 * 1000 * 90).toISOString(),
-        active: true,
-      };
-      setUser(mockUser);
-      setForm(mockUser);
-    }, 0);
+    let cancelled = false;
 
-    return () => window.clearTimeout(scheduleMockData);
-  }, []);
+    const loadProfile = async () => {
+      try {
+        const me = await usersApi.getMe();
 
-  useEffect(() => {
-    const resetTimer = () => {
-      setIsOnline(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(() => {
-        setIsOnline(false);
-        setUser((prev) => (prev ? { ...prev, lastSeenAt: new Date().toISOString() } : prev));
-      }, 60_000);
+        if (!cancelled) {
+          setUser(me);
+          setForm({
+            firstName: me.firstName,
+            lastName: me.lastName,
+            phone: me.phone,
+            bio: me.bio,
+            avatarUrl: me.avatarUrl,
+          });
+          setStoredUser(me);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(getErrorMessage(loadError));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     };
-    const events = ["mousemove", "keydown", "click"];
-    events.forEach((e) => window.addEventListener(e, resetTimer));
-    resetTimer();
+
+    void loadProfile();
+
     return () => {
-      events.forEach((e) => window.removeEventListener(e, resetTimer));
-      if (timerRef.current) clearTimeout(timerRef.current);
+      cancelled = true;
     };
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const avatarUrl = reader.result as string;
-      setForm((prev) => ({ ...prev, avatarUrl }));
-      setUser((prev) => (prev ? { ...prev, avatarUrl } : prev));
-    };
-    reader.readAsDataURL(file);
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file || !user) {
+      return;
+    }
+
+    try {
+      const updated = await usersApi.updateAvatar(user.id, file);
+      setUser(updated);
+      setStoredUser(updated);
+      setForm((prev) => ({ ...prev, avatarUrl: updated.avatarUrl }));
+      setError("");
+    } catch (avatarError) {
+      setError(getErrorMessage(avatarError));
+    } finally {
+      event.target.value = "";
+    }
   };
 
-  const handleSave = () => {
-    setUser((prev) => (prev ? { ...prev, ...(form as User) } : prev));
-    setEditing(false);
+  const handleSave = async () => {
+    if (!user) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const updated = await usersApi.update(user.id, form);
+      setUser(updated);
+      setStoredUser(updated);
+      setEditing(false);
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
-    setForm(user ?? {});
+    if (!user) {
+      return;
+    }
+
+    setForm({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      bio: user.bio,
+      avatarUrl: user.avatarUrl,
+    });
     setEditing(false);
+    setError("");
   };
 
-  const formatLastSeen = (dateString?: string) => {
-    if (!dateString) return "—";
-    const date = new Date(dateString);
-    const diff = new Date().getTime() - date.getTime();
-    const DAY  = 86_400_000;
-    const YEAR = DAY * 365;
-    if (diff < DAY)  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    if (diff < YEAR) return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
-    return date.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "2-digit" });
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate("/auth", { replace: true });
   };
 
-  if (!user)
+  if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <Typography color={TEXT_MUTED}>Loading…</Typography>
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight={420}>
+        <CircularProgress sx={{ color: ACCENT }} />
       </Box>
     );
+  }
+
+  if (!user) {
+    return (
+      <Box sx={{ p: 4, minWidth: 320 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error || "Не удалось загрузить профиль"}
+        </Alert>
+        <Button variant="contained" onClick={handleLogout} sx={{ bgcolor: ACCENT }}>
+          Выйти
+        </Button>
+      </Box>
+    );
+  }
 
   const infoRows = [
-    { icon: <PhoneIcon fontSize="small" />, label: "Phone",     value: (editing ? form.phone : user.phone) || "—" },
-    { icon: <AccountCircleIcon fontSize="small" />, label: "Username",  value: (editing ? form.username : user.username) || "—" },
-    { icon: <EmailIcon fontSize="small" />, label: "Email",     value: (editing ? form.email : user.email) || "—" },
-    { icon: <PersonIcon fontSize="small" />, label: "Full Name", value: ((editing ? form.firstName : user.firstName) ?? "") + " " + ((editing ? form.lastName : user.lastName) ?? "") || "—" },
+    { icon: <PhoneIcon fontSize="small" />, label: "Phone", value: user.phone || "—" },
+    { icon: <AccountCircleIcon fontSize="small" />, label: "Username", value: user.username || "—" },
+    { icon: <EmailIcon fontSize="small" />, label: "Email", value: user.email || "—" },
+    {
+      icon: <PersonIcon fontSize="small" />,
+      label: "Full Name",
+      value: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "—",
+    },
   ];
 
   return (
@@ -188,10 +224,7 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
 
         <Box sx={{ textAlign: "center", p: 3, pt: 8 }}>
           <Box sx={{ position: "relative", width: 110, height: 110, mx: "auto", mb: 1 }}>
-            <Avatar
-              src={form.avatarUrl ?? user.avatarUrl}
-              sx={{ width: 110, height: 110 }}
-            >
+            <Avatar src={user.avatarUrl} sx={{ width: 110, height: 110 }}>
               {user.username?.[0]?.toUpperCase() ?? "U"}
             </Avatar>
             {editing && (
@@ -221,24 +254,12 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
             />
           </Box>
           <Typography variant="h5" sx={{ color: TEXT_PRIMARY, fontWeight: 800, mb: 0.5 }}>
-            {user.firstName} {user.lastName}
+            {user.firstName || user.username} {user.lastName}
           </Typography>
           <Typography variant="body2" sx={{ color: TEXT_MUTED, mb: 1.5 }}>
             @{user.username}
           </Typography>
-
-          <Chip
-            label={isOnline ? "● Online" : `Last seen ${formatLastSeen(user.lastSeenAt)}`}
-            sx={{
-              bgcolor: isOnline ? "rgba(0,230,118,0.13)" : "rgba(255,255,255,0.06)",
-              color: isOnline ? "#00e676" : TEXT_MUTED,
-              border: isOnline ? "1px solid rgba(0,230,118,0.35)" : "1px solid rgba(255,255,255,0.11)",
-              fontWeight: 700,
-              fontSize: "0.68rem",
-              minWidth: 148,
-            }}
-          />
-          <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1 }}>
+          <Box sx={{ mt: 2, display: "flex", justifyContent: "center", gap: 1, flexWrap: "wrap" }}>
             {editing ? (
               <>
                 <Button
@@ -251,22 +272,42 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
                 <Button
                   variant="contained"
                   onClick={handleSave}
-                  sx={{ bgcolor: ACCENT, color: "#fff", '&:hover': { bgcolor: '#2563eb' } }}
+                  disabled={saving}
+                  sx={{ bgcolor: ACCENT, color: "#fff", "&:hover": { bgcolor: "#2563eb" } }}
                 >
-                  Save
+                  {saving ? "Saving..." : "Save"}
                 </Button>
               </>
             ) : (
-              <Button
-                variant="contained"
-                onClick={() => setEditing(true)}
-                sx={{ bgcolor: ACCENT, color: "#fff", '&:hover': { bgcolor: '#2563eb' } }}
-              >
-                Edit
-              </Button>
+              <>
+                <Button
+                  variant="contained"
+                  onClick={() => setEditing(true)}
+                  sx={{ bgcolor: ACCENT, color: "#fff", "&:hover": { bgcolor: "#2563eb" } }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleLogout}
+                  sx={{
+                    color: "#fda4af",
+                    borderColor: "rgba(244,63,94,0.35)",
+                    "&:hover": { borderColor: "rgba(244,63,94,0.55)" },
+                  }}
+                >
+                  Logout
+                </Button>
+              </>
             )}
           </Box>
         </Box>
+
+        {error && (
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Alert severity="error">{error}</Alert>
+          </Box>
+        )}
 
         <Divider sx={{ borderColor: "rgba(255,255,255,0.15)", mb: 1 }} />
 
@@ -292,21 +333,23 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
                 InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
               />
               <TextField
-                label="Email"
-                name="email"
-                value={form.email ?? ""}
-                onChange={handleChange}
-                size="small"
-                fullWidth
-                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
-              />
-              <TextField
                 label="Phone"
                 name="phone"
                 value={form.phone ?? ""}
                 onChange={handleChange}
                 size="small"
                 fullWidth
+                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
+              />
+              <TextField
+                label="Bio"
+                name="bio"
+                value={form.bio ?? ""}
+                onChange={handleChange}
+                size="small"
+                fullWidth
+                multiline
+                minRows={3}
                 InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
               />
             </Box>
@@ -321,15 +364,30 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
                   py: 1,
                   px: 1.5,
                   borderBottom: "1px solid rgba(255,255,255,0.07)",
+                  gap: 2,
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                   <Box sx={{ color: ACCENT }}>{row.icon}</Box>
-                  <Typography sx={{ color: TEXT_MUTED, fontSize: "0.76rem", textTransform: "uppercase", fontWeight: 700 }}>
+                  <Typography
+                    sx={{
+                      color: TEXT_MUTED,
+                      fontSize: "0.76rem",
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                    }}
+                  >
                     {row.label}
                   </Typography>
                 </Box>
-                <Typography sx={{ color: TEXT_PRIMARY, fontWeight: 600, fontSize: "0.95rem" }}>
+                <Typography
+                  sx={{
+                    color: TEXT_PRIMARY,
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                    textAlign: "right",
+                  }}
+                >
                   {row.value}
                 </Typography>
               </Box>
@@ -340,5 +398,3 @@ export default function UserProfilePage({ onClose }: UserProfilePageProps = {}) 
     </Box>
   );
 }
-
-// ─── Вспомогательные компоненты ────────────────────────────────
