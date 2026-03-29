@@ -27,7 +27,6 @@ import PersonSearchOutlinedIcon from "@mui/icons-material/PersonSearchOutlined";
 import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
-import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useNavigate } from "react-router-dom";
 import { chatsApi, messagesApi, usersApi, type Chat, type Message, type UserProfile } from "../api";
 import { clearAuthSession } from "../auth/storage";
@@ -45,6 +44,7 @@ type SearchMode = "people" | "chats" | null;
 
 const CHAT_REFRESH_MS = 5000;
 const MESSAGE_REFRESH_MS = 3000;
+const PEOPLE_SEARCH_MIN_LENGTH = 3;
 
 const palette = {
   shell: "#0b1222",
@@ -78,7 +78,7 @@ export default function ChatListPage() {
   const [peopleResults, setPeopleResults] = useState<UserProfile[]>([]);
   const [peopleSearchLoading, setPeopleSearchLoading] = useState(false);
   const [peopleSearchError, setPeopleSearchError] = useState<string | null>(null);
-  const [startingChatUserId, setStartingChatUserId] = useState<number | null>(null);
+  const [deletingChatId, setDeletingChatId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
@@ -229,6 +229,35 @@ export default function ChatListPage() {
     }
   };
 
+  const handleDeleteChat = useCallback(
+    async (chat: ConversationItem) => {
+      if (!chat.userId || deletingChatId === chat.chatId) {
+        return;
+      }
+
+      const confirmed = window.confirm(`Удалить чат с ${chat.name}?`);
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setDeletingChatId(chat.chatId);
+        await chatsApi.delete(chat.chatId);
+
+        if (selectedChatId === chat.chatId) {
+          setMessages([]);
+          setMessagesError(null);
+        }
+
+        await loadChats(true);
+      } catch (deleteError) {
+        setChatListError(deleteError instanceof Error ? deleteError.message : "Не удалось удалить чат");
+      } finally {
+        setDeletingChatId(null);
+      }
+    },
+    [deletingChatId, loadChats, selectedChatId]
+  );
   const updateConversationPreview = useCallback((chatId: number, nextMessages: Message[]) => {
     const lastMessage = nextMessages[nextMessages.length - 1];
     setConversations((prev) =>
@@ -324,9 +353,9 @@ export default function ChatListPage() {
 
   const searchPeople = useCallback(
     async (query: string) => {
-      const normalizedQuery = query.trim();
+      const normalizedQuery = query.trim().toLowerCase();
 
-      if (!normalizedQuery) {
+      if (!normalizedQuery || normalizedQuery.length < PEOPLE_SEARCH_MIN_LENGTH) {
         setPeopleResults([]);
         setPeopleSearchError(null);
         return;
@@ -336,8 +365,20 @@ export default function ChatListPage() {
         setPeopleSearchLoading(true);
         setPeopleSearchError(null);
         const foundUsers = await usersApi.search(normalizedQuery, 20);
+        const filteredUsers = foundUsers.filter((user) => {
+          const username = user.username.toLowerCase();
+          const fullName = [user.firstName, user.lastName]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          return username.includes(normalizedQuery) || fullName.includes(normalizedQuery);
+        });
+
         setPeopleResults(
-          currentUser ? foundUsers.filter((user) => user.id !== currentUser.id) : foundUsers
+          currentUser
+            ? filteredUsers.filter((user) => user.id !== currentUser.id)
+            : filteredUsers
         );
       } catch (searchError) {
         setPeopleSearchError(
@@ -359,7 +400,7 @@ export default function ChatListPage() {
     }
 
     const normalizedQuery = searchQuery.trim();
-    if (!normalizedQuery) {
+    if (!normalizedQuery || normalizedQuery.length < PEOPLE_SEARCH_MIN_LENGTH) {
       setPeopleResults([]);
       setPeopleSearchLoading(false);
       setPeopleSearchError(null);
@@ -374,38 +415,6 @@ export default function ChatListPage() {
       window.clearTimeout(timeoutId);
     };
   }, [searchMode, searchPeople, searchQuery]);
-
-  const handleStartPrivateChat = useCallback(
-    async (user: UserProfile) => {
-      if (startingChatUserId === user.id) {
-        return;
-      }
-
-      try {
-        setStartingChatUserId(user.id);
-        setPeopleSearchError(null);
-        const chat = await chatsApi.create({
-          type: "PRIVATE",
-          peerUserId: user.id,
-        });
-
-        await loadChats(true);
-        const nextChatId = getChatId(chat);
-
-        if (isValidChatId(nextChatId)) {
-          setSelectedChatId(nextChatId);
-          resetSearch();
-        }
-      } catch (createError) {
-        setPeopleSearchError(
-          createError instanceof Error ? createError.message : "Не удалось открыть чат с пользователем."
-        );
-      } finally {
-        setStartingChatUserId(null);
-      }
-    },
-    [loadChats, startingChatUserId]
-  );
 
   const filteredChats = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -637,8 +646,7 @@ export default function ChatListPage() {
                   return (
                     <ListItemButton
                       key={`user-${user.id}`}
-                      onClick={() => void handleStartPrivateChat(user)}
-                      disabled={startingChatUserId === user.id}
+                      onClick={() => setSelectedUserId(user.id)}
                       sx={{
                         borderRadius: 2,
                         mb: 0.5,
@@ -662,11 +670,11 @@ export default function ChatListPage() {
                   );
                 })}
               </List>
-            ) : searchQuery.trim() ? (
+            ) : searchQuery.trim().length >= PEOPLE_SEARCH_MIN_LENGTH ? (
               <Typography sx={{ color: palette.muted, p: 2 }}>Ничего не найдено</Typography>
             ) : (
               <Typography sx={{ color: palette.muted, p: 2 }}>
-                Начните вводить имя, username или телефон
+                Введите минимум {PEOPLE_SEARCH_MIN_LENGTH} символа для поиска по нику
               </Typography>
             )
           ) : (
@@ -706,21 +714,25 @@ export default function ChatListPage() {
                       }
                     />
                     {chat.userId ? (
-                      <IconButton
-                        edge="end"
-                        aria-label={`Открыть профиль ${chat.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedUserId(chat.userId ?? null);
-                        }}
-                        sx={{
-                          color: "#93c5fd",
-                          ml: 1,
-                          "&:hover": { bgcolor: "rgba(59,130,246,0.12)" },
-                        }}
-                      >
-                        <VisibilityOutlinedIcon fontSize="small" />
-                      </IconButton>
+                      <Tooltip title="Удалить чат">
+                        <span>
+                          <IconButton
+                            edge="end"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleDeleteChat(chat);
+                            }}
+                            disabled={deletingChatId === chat.chatId}
+                            sx={{
+                              color: "#fda4af",
+                              ml: 1,
+                              "&:hover": { bgcolor: "rgba(244,63,94,0.1)" },
+                            }}
+                          >
+                            <DeleteOutlineRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     ) : null}
                   </ListItemButton>
                 ))}
@@ -765,20 +777,42 @@ export default function ChatListPage() {
                 borderBottom: "1px solid rgba(255,255,255,0.08)",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: 1.5,
               }}
             >
-              <Avatar src={selectedConversation.avatarUrl} sx={{ width: 44, height: 44 }}>
-                {selectedConversation.name[0]}
-              </Avatar>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ color: "#fff", fontWeight: 700 }}>
-                  {selectedConversation.name}
-                </Typography>
-                <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
-                  Личная переписка
-                </Typography>
-              </Box>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                <Avatar
+                  src={selectedConversation.avatarUrl}
+                  onClick={() => {
+                    if (selectedConversation.userId) {
+                      setSelectedUserId(selectedConversation.userId);
+                    }
+                  }}
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    cursor: selectedConversation.userId ? "pointer" : "default",
+                    transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                    "&:hover": selectedConversation.userId
+                      ? {
+                          transform: "scale(1.04)",
+                          boxShadow: "0 0 0 3px rgba(59,130,246,0.18)",
+                        }
+                      : undefined,
+                  }}
+                >
+                  {selectedConversation.name[0]}
+                </Avatar>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ color: "#fff", fontWeight: 700 }}>
+                    {selectedConversation.name}
+                  </Typography>
+                  <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                    Личная переписка
+                  </Typography>
+                </Box>
+              </Stack>
             </Box>
 
             <Box
