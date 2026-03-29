@@ -1,0 +1,38 @@
+info:
+  name: send-message
+  type: http
+  seq: 1
+
+http:
+  method: post
+  url: http://localhost:8888/api/chats/{{chatId}}/messages
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "content": "Привет!",
+        "contentType": "TEXT"
+      }
+  auth: inherit
+
+runtime:
+  actions:
+    - type: set-variable
+      phase: after-response
+      selector:
+        expression: res.body.id
+        method: jsonq
+      variable:
+        name: msgId
+        scope: runtime
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

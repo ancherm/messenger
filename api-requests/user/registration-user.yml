@@ -1,7 +1,7 @@
 info:
   name: registration-user
   type: http
-  seq: 1
+  seq: 2
 
 http:
   method: POST
@@ -10,8 +10,8 @@ http:
     type: json
     data: |-
       {
-        "username": "ivanov",
-        "email": "ivanov@gmail.com",
+        "username": "ivanov1",
+        "email": "ivanov1@gmail.com",
         "password": "password"
       }
   auth: inherit

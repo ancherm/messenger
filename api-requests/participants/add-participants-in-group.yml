@@ -1,0 +1,29 @@
+info:
+  name: add-participants-in-group
+  type: http
+  seq: 1
+
+http:
+  method: post
+  url: http://localhost:8888/api/chats/1/participants
+  headers:
+    - name: Authorization
+      value: Bearer {{tokenLogin}}
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "userIds": [
+          2,
+          3
+        ]
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: false
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
