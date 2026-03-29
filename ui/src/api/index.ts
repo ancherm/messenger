@@ -2,14 +2,12 @@ export { apiClient, type ApiResponse, type RequestOptions } from "./client";
 export { api, authApi, usersApi, chatsApi, messagesApi } from "./endpoints";
 export type {
   UserProfile,
-  LoginRequest,
-  LoginResponse,
   RegisterRequest,
   CreateUserRequest,
-  UpdateUserRequest,
   LoginRequest,
   AuthTokens,
   AuthResponse,
+  UpdateUserRequest,
   Message,
   SendMessageRequest,
   GetMessagesQuery,

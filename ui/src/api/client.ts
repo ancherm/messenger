@@ -1,10 +1,7 @@
 import { MockApiClient } from "./mock/mockClient";
 import type { IApiClient } from "./mock/mockClient";
 
-const DEFAULT_API_ORIGIN =
-  typeof window === "undefined" ? "http://localhost:5173" : window.location.origin;
-
-export const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_ORIGIN;
+export const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -97,18 +94,6 @@ class ApiClient implements IApiClient {
     });
   }
 
-  async patch<T = unknown>(
-    endpoint: string,
-    body?: unknown,
-    options?: RequestOptions
-  ): Promise<T> {
-    return this.request<T>(endpoint, {
-      ...options,
-      method: "PATCH",
-      body: JSON.stringify(body),
-    });
-  }
-
   async delete<T = unknown>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: "DELETE" });
   }
@@ -152,33 +137,6 @@ class ApiClient implements IApiClient {
     params?: Record<string, string | number | boolean | undefined>
   ): string {
     return resolveApiUrl(this.baseURL, endpoint, params);
-  }
-
-  private buildHeaders(customHeaders?: HeadersInit): HeadersInit {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (customHeaders && typeof customHeaders === "object" && !(customHeaders instanceof Headers)) {
-    const url = new URL(endpoint, this.resolveBaseUrl());
-
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-
-    return url.toString();
-  }
-
-  private resolveBaseUrl(): string {
-    try {
-      return new URL(this.baseURL).toString();
-    } catch {
-      return new URL(this.baseURL, DEFAULT_API_ORIGIN).toString();
-    }
   }
 
   private async getErrorMessage(response: Response): Promise<string> {
@@ -229,7 +187,7 @@ class ApiClient implements IApiClient {
   }
 }
 
-const useMock = import.meta.env.VITE_API_MOCK !== "false";
+const useMock = import.meta.env.VITE_API_MOCK === "true";
 export const apiClient: IApiClient = useMock ? new MockApiClient() : new ApiClient();
 
 export type { ApiResponse, RequestOptions };

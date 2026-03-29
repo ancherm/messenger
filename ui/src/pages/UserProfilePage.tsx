@@ -7,7 +7,7 @@ import {
   Avatar,
   Box,
   Button,
-  CircularProgress,
+  Chip,
   Divider,
   IconButton,
   TextField,
@@ -103,8 +103,8 @@ export default function UserProfilePage({
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file || !user || isReadOnly) {
       return;
     }
@@ -118,7 +118,7 @@ export default function UserProfilePage({
       setError(avatarError instanceof Error ? avatarError.message : "Failed to update avatar");
     } finally {
       setSaving(false);
-      e.target.value = "";
+      event.target.value = "";
     }
   };
 
@@ -157,6 +157,7 @@ export default function UserProfilePage({
       phone: user.phone,
       bio: user.bio,
       avatarUrl: user.avatarUrl,
+      status: user.status,
     });
     setEditing(false);
     setError(null);
@@ -361,10 +362,6 @@ export default function UserProfilePage({
               </Button>
             )}
           </Box>
-
-          {error && (
-            <Typography sx={{ mt: 1.5, color: "#fca5a5", fontSize: "0.85rem" }}>{error}</Typography>
-          )}
         </Box>
 
         {error && (
@@ -416,17 +413,6 @@ export default function UserProfilePage({
                 minRows={3}
                 InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
               />
-              <TextField
-                label="Bio"
-                name="bio"
-                value={form.bio ?? ""}
-                onChange={handleChange}
-                size="small"
-                fullWidth
-                multiline
-                minRows={3}
-                InputProps={{ sx: { color: TEXT_PRIMARY, bgcolor: "#0b1b36" } }}
-              />
             </Box>
           ) : (
             infoRows.map((row) => (
@@ -440,7 +426,6 @@ export default function UserProfilePage({
                   py: 1,
                   px: 1.5,
                   borderBottom: "1px solid rgba(255,255,255,0.07)",
-                  gap: 2,
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>

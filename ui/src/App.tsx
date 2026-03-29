@@ -27,9 +27,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<ChatListPage />} />
-        <Route path="/profile" element={<UserProfilePage />} />
-        <Route path="/users/:id/profile" element={<UserProfilePage readOnly />} />
         <Route
           path="/auth"
           element={
@@ -51,6 +48,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <UserProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users/:id/profile"
+          element={
+            <ProtectedRoute>
+              <UserProfilePage readOnly />
             </ProtectedRoute>
           }
         />

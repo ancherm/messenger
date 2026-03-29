@@ -16,20 +16,10 @@ export interface UserProfile {
   avatarUrl?: string;
   bio?: string;
   status?: UserStatus | string;
-  lastSeenAt?: string;
-  status?: string;
   active?: boolean;
+  lastSeenAt?: string;
   createdAt: string;
   updatedAt?: string;
-}
-
-export interface LoginRequest {
-  username: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  token: string;
 }
 
 export interface RegisterRequest {
@@ -41,15 +31,6 @@ export interface RegisterRequest {
 export interface CreateUserRequest extends RegisterRequest {
   firstName?: string;
   lastName?: string;
-}
-
-export interface UpdateUserRequest {
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  bio?: string;
-  avatarUrl?: string;
-  status?: UserStatus | string;
 }
 
 export interface LoginRequest {
@@ -66,7 +47,14 @@ export interface AuthResponse extends AuthTokens {
   user?: UserProfile;
 }
 
-// ─── Message Types ────────────────────────────────────────────
+export interface UpdateUserRequest {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  bio?: string;
+  avatarUrl?: string;
+  status?: UserStatus | string;
+}
 
 export interface Message {
   id: number;
