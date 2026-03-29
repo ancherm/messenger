@@ -109,6 +109,7 @@ export default function ChatListPage() {
   const [groupProfileLoading, setGroupProfileLoading] = useState(false);
   const [groupProfileError, setGroupProfileError] = useState<string | null>(null);
   const [groupProfile, setGroupProfile] = useState<ChatDetailsResponse | null>(null);
+  const [removingParticipantId, setRemovingParticipantId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = useCallback(() => {
@@ -295,7 +296,10 @@ export default function ChatListPage() {
       setGroupProfileLoading(true);
       setGroupProfileError(null);
       const details = await chatsApi.getDetails(chatId);
-      setGroupProfile(details);
+      setGroupProfile({
+        ...details,
+        participants: details.participants.filter((participant) => !participant.leftAt),
+      });
       setGroupProfileOpen(true);
     } catch (loadError) {
       setGroupProfileError(
@@ -307,13 +311,42 @@ export default function ChatListPage() {
     }
   }, []);
 
-  const handleDeleteChat = useCallback(
-    async (chat: ConversationItem) => {
-      if (!chat.userId || deletingChatId === chat.chatId) {
+  const removeGroupParticipant = useCallback(
+    async (participantUserId: number) => {
+      if (!groupProfile) {
         return;
       }
 
-      const confirmed = window.confirm(`Удалить чат с ${chat.name}?`);
+      setRemovingParticipantId(participantUserId);
+      setGroupProfileError(null);
+
+      try {
+        await chatsApi.removeParticipant(groupProfile.chat.id, participantUserId);
+        setGroupProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                participants: prev.participants.filter((participant) => participant.userId !== participantUserId),
+              }
+            : prev
+        );
+      } catch (error) {
+        setGroupProfileError(error instanceof Error ? error.message : "Не удалось удалить участника");
+      } finally {
+        setRemovingParticipantId(null);
+      }
+    },
+    [groupProfile]
+  );
+
+  const handleDeleteChat = useCallback(
+    async (chat: ConversationItem) => {
+      if (deletingChatId === chat.chatId) {
+        return;
+      }
+
+      const actionLabel = chat.chatType === "GROUP" ? "Выйти из группы" : "Удалить чат";
+      const confirmed = window.confirm(`${actionLabel} ${chat.name}?`);
       if (!confirmed) {
         return;
       }
@@ -694,7 +727,8 @@ export default function ChatListPage() {
           <Stack direction="row" spacing={1.5} alignItems="center">
             <Avatar
               src={currentUser?.avatarUrl}
-              sx={{ width: 42, height: 42, bgcolor: palette.accentSoft, color: "#bfdbfe" }}
+              onClick={() => setProfileOpen(true)}
+              sx={{ width: 42, height: 42, bgcolor: palette.accentSoft, color: "#bfdbfe", cursor: "pointer" }}
             >
               {currentUser?.username?.[0]?.toUpperCase() ?? "U"}
             </Avatar>
@@ -709,18 +743,6 @@ export default function ChatListPage() {
           </Stack>
 
           <Stack direction="row" spacing={1}>
-            <Tooltip title="Профиль">
-              <IconButton
-                color="inherit"
-                onClick={() => setProfileOpen(true)}
-                sx={{
-                  color: palette.accent,
-                  "&:hover": { bgcolor: palette.accentSoft },
-                }}
-              >
-                <AccountCircleIcon />
-              </IconButton>
-            </Tooltip>
             <Tooltip title="Выйти">
               <IconButton
                 color="inherit"
@@ -942,8 +964,8 @@ export default function ChatListPage() {
                         </Typography>
                       }
                     />
-                    {chat.userId ? (
-                      <Tooltip title="Удалить чат">
+                    {(chat.userId || chat.chatType === "GROUP") ? (
+                      <Tooltip title={chat.chatType === "GROUP" ? "Выйти из группы" : "Удалить чат"}>
                         <span>
                           <IconButton
                             edge="end"
@@ -1537,34 +1559,74 @@ export default function ChatListPage() {
               </Box>
 
               <Box>
-                <Typography sx={{ color: "#fff", fontWeight: 600, mb: 1 }}>
-                  Участники ({groupProfile.participants.length})
-                </Typography>
-                <List sx={{ p: 0 }}>
-                  {groupProfile.participants.map((participant) => (
-                    <ListItemButton
-                      key={`group-member-${participant.userId}`}
-                      onClick={() => setSelectedUserId(participant.userId)}
-                      sx={{
-                        borderRadius: 2,
-                        mb: 0.5,
-                        "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
-                      }}
-                    >
-                      <ListItemAvatar>
-                        <Avatar>{participant.username?.[0]?.toUpperCase() ?? "U"}</Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={<Typography sx={{ color: "#fff" }}>{participant.username}</Typography>}
-                        secondary={
-                          <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
-                            {participant.role || "MEMBER"}
-                          </Typography>
-                        }
-                      />
-                    </ListItemButton>
-                  ))}
-                </List>
+                {(() => {
+                  const activeParticipants = groupProfile.participants.filter(
+                    (participant) => !participant.leftAt
+                  );
+                  return (
+                    <>
+                      <Typography sx={{ color: "#fff", fontWeight: 600, mb: 1 }}>
+                        Участники ({activeParticipants.length})
+                      </Typography>
+                      <List sx={{ p: 0 }}>
+                        {activeParticipants.map((participant) => {
+                    const currentUserParticipant = currentUser
+                      ? groupProfile.participants.find((member) => member.userId === currentUser.id)
+                      : undefined;
+                    const canRemoveParticipants =
+                      currentUserParticipant?.role === "OWNER" || currentUserParticipant?.role === "ADMIN";
+                    const showRemoveButton =
+                      canRemoveParticipants &&
+                      participant.userId !== currentUser?.id &&
+                      participant.role !== "OWNER";
+
+                    return (
+                      <ListItemButton
+                        key={`group-member-${participant.userId}`}
+                        onClick={() => setSelectedUserId(participant.userId)}
+                        sx={{
+                          borderRadius: 2,
+                          mb: 0.5,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          "&:hover": { bgcolor: "rgba(59,130,246,0.15)" },
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                          <ListItemAvatar>
+                            <Avatar>{participant.username?.[0]?.toUpperCase() ?? "U"}</Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={<Typography sx={{ color: "#fff" }}>{participant.username}</Typography>}
+                            secondary={
+                              <Typography sx={{ color: palette.muted, fontSize: "0.85rem" }}>
+                                {participant.role || "MEMBER"}
+                              </Typography>
+                            }
+                          />
+                        </Box>
+                        {showRemoveButton ? (
+                          <IconButton
+                            edge="end"
+                            size="small"
+                            color="inherit"
+                            disabled={removingParticipantId === participant.userId}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void removeGroupParticipant(participant.userId);
+                            }}
+                          >
+                            <DeleteOutlineRoundedIcon fontSize="small" />
+                          </IconButton>
+                        ) : null}
+                      </ListItemButton>
+                    );
+                  })}
+                      </List>
+                    </>
+                  );
+                })()}
               </Box>
             </Stack>
           ) : null}

@@ -42,7 +42,7 @@ public interface ChatParticipantRepository extends JpaRepository<ChatParticipant
     @Query("""
             SELECT cp FROM ChatParticipant cp
             JOIN FETCH cp.user u
-            WHERE cp.chat.id = :chatId
+            WHERE cp.chat.id = :chatId AND cp.leftAt IS NULL
             ORDER BY cp.joinedAt ASC
             """)
     List<ChatParticipant> findByChatIdWithUserOrdered(@Param("chatId") Long chatId);

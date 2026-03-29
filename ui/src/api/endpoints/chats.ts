@@ -26,6 +26,10 @@ export const chatsApi = {
     return apiClient.delete(`/chats/${id}`);
   },
 
+  removeParticipant(chatId: number, userId: number): Promise<void> {
+    return apiClient.delete(`/chats/${chatId}/participants/${userId}`);
+  },
+
   search(query: string): Promise<Chat[]> {
     return apiClient.get("/chats/search", {
       params: { query },

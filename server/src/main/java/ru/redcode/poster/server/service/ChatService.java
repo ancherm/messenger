@@ -162,6 +162,7 @@ public class ChatService {
         ensureActiveMember(chatId, currentUserId);
 
         List<ChatParticipantResponse> parts = chatParticipantRepository.findByChatIdWithUserOrdered(chatId).stream()
+                .filter(participant -> participant.getLeftAt() == null)
                 .map(this::toParticipantResponse)
                 .collect(Collectors.toList());
 
@@ -199,7 +200,7 @@ public class ChatService {
         ChatParticipant me = chatParticipantRepository.findByChat_IdAndUser_IdAndLeftAtIsNull(chatId, currentUserId)
                 .orElseThrow(() -> new ForbiddenOperationException("Not a member of this chat"));
 
-        if (me.getRole() == ParticipantRole.OWNER) {
+        if (me.getRole() == ParticipantRole.OWNER || me.getRole() == ParticipantRole.ADMIN) {
             chatRepository.delete(chat);
         } else {
             me.setLeftAt(LocalDateTime.now());
